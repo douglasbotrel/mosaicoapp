@@ -17,6 +17,7 @@ node e2e_mapa.js
 node gen_pacotes.js 12 tmp
 node e2e_central.js
 node e2e_central2.js
+node e2e_pasta.js
 python3 -c "
 import random;random.seed(7);L=['id;parque;nome;car;area_car_ha;municipio']
 for i in range(1,601):

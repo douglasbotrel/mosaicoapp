@@ -1,4 +1,4 @@
-# Mosaico · coletor de campo (versão 1.2.1)
+# Mosaico · coletor de campo (versão 1.3.0)
 
 Aplicativo de celular, sem internet, para o cadastro e diagnóstico fundiário dos Parques Estaduais do Biribiri (PEBI) e da Serra Negra (PESN) (Carta Convite Funbio nº 208/2026). Mais uma **central** no computador para juntar os dados dos celulares, conferir a qualidade e exportar.
 
@@ -32,7 +32,7 @@ Toque no imóvel. O formulário tem 11 blocos (10 no PEBI; o de comunidade tradi
 Aba *Enviar* → *Gerar pacote*. Gera um ou mais `.zip` (100 fotos por arquivo, ajustável), que podem ser compartilhados (WhatsApp, e-mail, Drive) ou copiados por cabo. Pode repetir quantas vezes quiser: a central junta sem duplicar.
 
 **5. Consolidar e exportar**
-Abra `central/central.html`, arraste os `.zip`. Abas: Resumo, Visitas, Qualidade, Exportar, Lista para celulares. Exporta Excel, CSV, shapefiles, GeoJSON, fichas PDF, fotos organizadas por imóvel (com GPS gravado na imagem) e um projeto consolidado.
+Abra a central (veja `docs/CENTRAL_NO_PC.md`: pela web em Chrome/Edge, com **pasta do projeto** que guarda tudo organizado) e arraste os `.zip`. Abas: Resumo, Visitas, Qualidade, Exportar, Lista para celulares. Exporta Excel, CSV, shapefiles, GeoJSON, fichas PDF, fotos organizadas por imóvel (com GPS gravado na imagem) e um projeto consolidado.
 
 ## Decisões e cuidados
 - **Datum: SIRGAS 2000 (EPSG:4674).** Os shapefiles saem com `.prj` SIRGAS 2000, e o pacote registra o datum. O GPS do celular entrega WGS 84; o [IBGE informa](https://www.ibge.gov.br/en/geosciences/geodetic-positioning/sirgas-en/19191-geodetic-reference-system-change-project.html) que não há parâmetros de transformação entre SIRGAS 2000 e WGS 84 (praticamente idênticos), então nenhuma conversão é feita. O GeoJSON segue o padrão do formato (WGS 84, na prática o mesmo).

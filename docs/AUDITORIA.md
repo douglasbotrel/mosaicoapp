@@ -1,4 +1,4 @@
-# Auditoria e testes: Mosaico 1.2.1 (25/10/2026)
+# Auditoria e testes: Mosaico 1.3.0 (25/10/2026)
 
 Ambiente: Chromium (Playwright) com perfil de celular (Pixel 7) e GPS simulado; Node 22; conferência independente das saídas com Pillow (EXIF), pyshp (shapefile), openpyxl (Excel), pdftotext/pdfinfo (PDF), `zipfile` (ZIP).
 
@@ -56,6 +56,15 @@ Achados que dependem de decisão ou de dado externo (não é defeito do código)
 - **Atualização do app no celular** entra na segunda abertura com internet (comportamento do service worker).
 - **Celulares da mesma equipe** podem coletar o mesmo imóvel; o conflito só aparece na central.
 - **Ainda não feito:** importar shapefile de imóveis para o mapa; teste em celular real (Android e iPhone); baixar imagem de satélite real com licença confirmada.
+
+## Acrescentado na 1.3 (pasta do projeto na central)
+| Área | Teste | Resultado |
+|---|---|---|
+| Pasta | Pacotes originais gravados em `recebidos/<parque>/<data>/`; lista em `lista/`; base em `projeto/` com cópia diária; exportações em `exportacoes/<data>/` (sem baixar); arquivos para equipes em `distribuicao/` | Passou (no sistema de arquivos privado do navegador, no lugar da pasta real) |
+| Repetição | Mesmo pacote carregado de novo ganha sufixo `-2` e não duplica visitas | Passou |
+| Reabrir | Ao recarregar a central, o projeto e o registro de pacotes voltam sozinhos da pasta | Passou |
+| Segurança do projeto | Se a leitura do projeto salvo falhar, a central avisa e não grava por cima | Revisado no código |
+| Não verificado | Seleção de pasta real do Windows (diálogo do Chrome/Edge) e pedido de permissão na reabertura: o teste automático não aciona o diálogo nativo; confirme no primeiro uso | Pendente |
 
 ## Limites desta auditoria (não verificado)
 1. **Aparelhos reais.** Nenhum teste em celular físico, nem em iPhone/Safari. Câmera nativa, precisão do GPS sob mata, `capture` da câmera, Web Share e comportamento de memória variam por aparelho. **Faça um piloto de campo de meio dia antes da campanha.**

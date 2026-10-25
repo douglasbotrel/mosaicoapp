@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   var DB = root.MOSAICO_DB, U = root.MOSAICO_UI, h = U.h, C = root.MOSAICO_CORE, S = root.MOSAICO_SCHEMA, V = root.MOSAICO_VALIDAR, T = root.MOSAICO_CSV, PK = root.MOSAICO_PACOTE;
-  var VERSAO = '1.2.1';
+  var VERSAO = '1.3.0';
   var A = { VERSAO: VERSAO, st: { aba: 'imoveis', filtro: 'todos', busca: '', pagina: 1, imoveis: [], visitas: {}, fotosN: {}, meta: { operador: '', equipe: '', aparelho: '', parque: '' }, tela: 'lista' } };
   root.MOSAICO_APP = A;
   var $app = null, POR_PAGINA = 80;

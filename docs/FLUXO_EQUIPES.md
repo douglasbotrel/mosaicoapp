@@ -1,4 +1,4 @@
-# Fluxo das equipes (versão 1.2.1)
+# Fluxo das equipes (versão 1.3.0)
 
 Uma equipe por parque (PEBI e PESN). Cada equipe faz sua rotina e envia pacotes à central. Não há servidor: a troca é por arquivo.
 

@@ -1,10 +1,17 @@
 (function () {
   'use strict';
-  var E = MOSAICO_EXPORT, C = MOSAICO_CORE, S = MOSAICO_SCHEMA, PK = MOSAICO_PACOTE, T = MOSAICO_CSV, V = MOSAICO_VALIDAR;
+  var PA = MOSAICO_PASTA, E = MOSAICO_EXPORT, C = MOSAICO_CORE, S = MOSAICO_SCHEMA, PK = MOSAICO_PACOTE, T = MOSAICO_CSV, V = MOSAICO_VALIDAR;
   var est = E.novoEstado(), aba = 'resumo', $main = document.getElementById('main'), $nav = document.getElementById('nav'), msgs = [];
   function h(tag, a) { var el = document.createElement(tag); if (a) Object.keys(a).forEach(function (k) { var v = a[k]; if (v == null || v === false) return; if (k === 'text') el.textContent = v; else if (k === 'html') el.innerHTML = v; else if (k.slice(0, 2) === 'on') el.addEventListener(k.slice(2), v); else if (v === true) el.setAttribute(k, ''); else el.setAttribute(k, v); }); for (var i = 2; i < arguments.length; i++) add(el, arguments[i]); return el; }
   function add(el, c) { if (c == null || c === false) return; if (Array.isArray(c)) c.forEach(function (x) { add(el, x); }); else el.appendChild(c.nodeType ? c : document.createTextNode(String(c))); }
-  function baixar(nome, data, tipo) { var b = new Blob([data], { type: tipo || 'application/octet-stream' }), a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = nome; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 3000); }
+  function baixarNav(nome, data, tipo) { var b = new Blob([data], { type: tipo || 'application/octet-stream' }), a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = nome; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 3000); }
+  /* com a pasta do projeto ativa, grava lá (exportacoes/<data>/ ou a subpasta pedida); senão, baixa pelo navegador */
+  function baixar(nome, data, tipo, sub) {
+    if (!PA.raiz) return baixarNav(nome, data, tipo);
+    var partes = sub || ['exportacoes', hoje()];
+    return PA.gravar(partes, nome, new Blob([data], { type: tipo || 'application/octet-stream' })).then(function (c) { msg('Salvo na pasta do projeto: ' + c); }, function (e) { msg('Não gravou na pasta (' + e.message + '); baixando pelo navegador'); baixarNav(nome, data, tipo); });
+  }
+  function hoje() { var d = new Date(), p = function (n) { return ('0' + n).slice(-2); }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
   function msg(t) { msgs.unshift(t); msgs = msgs.slice(0, 6); render(); }
   function stamp() { var d = new Date(), p = function (n) { return ('0' + n).slice(-2); }; return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()); }
 
@@ -12,15 +19,92 @@
   function ler(files) {
     var fs = Array.prototype.slice.call(files);
     return fs.reduce(function (p, f) { return p.then(function () {
-      if (/\.zip$/i.test(f.name)) return f.arrayBuffer().then(PK.ler).then(function (pk) { var r = E.incorporar(est, pk, f.name); msg(f.name + ': ' + r.visitas + ' visitas, ' + r.fotosNovas + ' fotos novas' + (r.conflitos ? ', ' + r.conflitos + ' conflito(s)' : '')); });
+      if (/\.zip$/i.test(f.name)) return f.arrayBuffer().then(PK.ler).then(function (pk) { var r = E.incorporar(est, pk, f.name); guardarRecebido(f, pk); msg(f.name + ': ' + r.visitas + ' visitas, ' + r.fotosNovas + ' fotos novas' + (r.conflitos ? ', ' + r.conflitos + ' conflito(s)' : '')); });
       return f.text().then(function (txt) {
         var arr; if (/^\s*[\[{]/.test(txt)) { var j = JSON.parse(txt); arr = Array.isArray(j) ? j : j.imoveis; } else { var r = T.imoveisDeTabela(T.parse(txt)); arr = r.imoveis; r.avisos.forEach(function (a) { msg('Lista: ' + a); }); }
-        E.incorporarLista(est, arr || []); msg(f.name + ': ' + (arr || []).length + ' imóveis na lista');
+        E.incorporarLista(est, arr || []); if (PA.raiz) PA.gravarUnico(['lista'], f.name, f).catch(function () {}); msg(f.name + ': ' + (arr || []).length + ' imóveis na lista');
       });
-    }).catch(function (e) { msg('ERRO em ' + f.name + ': ' + e.message); }); }, Promise.resolve()).then(render);
+    }).catch(function (e) { msg('ERRO em ' + f.name + ': ' + e.message); }); }, Promise.resolve()).then(function () { salvarProjeto(); render(); });
   }
   function entrada(multi) { var i = h('input', { type: 'file', multiple: true, accept: '.zip,.csv,.json,.txt' }); i.addEventListener('change', function () { ler(i.files); }); i.click(); }
   window.addEventListener('dragover', function (e) { e.preventDefault(); }); window.addEventListener('drop', function (e) { e.preventDefault(); if (e.dataTransfer.files.length) ler(e.dataTransfer.files); });
+
+  /* ---------- pasta do projeto ---------- */
+  var projetoPronto = false, salvando = Promise.resolve(), tSalvar = null, ultimoHist = '', erroPasta = '';
+  function parqueDe(pk) {
+    if (pk.manifest.parque) return pk.manifest.parque;
+    var c = {}; pk.imoveis.forEach(function (i) { if (i.parque) c[i.parque] = (c[i.parque] || 0) + 1; });
+    var ks = Object.keys(c).sort(function (a, b) { return c[b] - c[a]; }); return ks.length === 1 ? ks[0] : (ks.length ? 'misto' : 'sem-parque');
+  }
+  function guardarRecebido(f, pk) {
+    if (!PA.raiz) return;
+    var dia = String(pk.manifest.criadoEm || '').slice(0, 10) || hoje();
+    PA.gravarUnico(['recebidos', parqueDe(pk), dia], f.name, f).catch(function (e) { erroPasta = 'Não gravou ' + f.name + ': ' + e.message; render(); });
+  }
+  /* regrava a base consolidada (e o registro de pacotes/conflitos/alertas) depois de cada carga */
+  function salvarProjeto(agora) {
+    if (!PA.raiz || !projetoPronto) return Promise.resolve();
+    clearTimeout(tSalvar);
+    var fazer = function () {
+      salvando = salvando.then(function () {
+        return E.consolidado(est, 'central').then(function (u8) {
+          return PA.gravar(['projeto'], 'projeto_consolidado.zip', u8).then(function () {
+            var reg = JSON.stringify({ salvoEm: new Date().toISOString(), pacotes: est.pacotes, conflitos: est.conflitos, alertas: est.alertas }, null, 1);
+            return PA.gravar(['projeto'], 'registro.json', reg);
+          }).then(function () { var d = hoje(); if (d !== ultimoHist) { ultimoHist = d; return PA.gravar(['projeto', 'historico'], 'projeto_' + d + '.zip', u8); } });
+        }).then(function () { erroPasta = ''; render(); }, function (e) { erroPasta = 'Falha ao salvar o projeto: ' + e.message; render(); });
+      });
+      return salvando;
+    };
+    if (agora) return fazer();
+    tSalvar = setTimeout(fazer, 600); return Promise.resolve();
+  }
+  /* lê projeto/projeto_consolidado.zip da pasta e junta ao que já está carregado */
+  function carregarProjeto() {
+    return PA.ler(['projeto'], 'projeto_consolidado.zip').then(function (f) {
+      if (!f) return null;
+      return f.arrayBuffer().then(PK.ler).then(function (pk) {
+        var antes = est.pacotes.length; E.incorporar(est, pk, 'projeto_consolidado.zip'); est.pacotes.length = antes;
+        return PA.ler(['projeto'], 'registro.json').then(function (rf) { return rf ? rf.text() : null; }).then(function (t) {
+          if (t) { var r = JSON.parse(t); est.pacotes = (r.pacotes || []).concat(est.pacotes); est.conflitos = (r.conflitos || []).concat(est.conflitos); est.alertas = (r.alertas || []).concat(est.alertas); }
+          return { imoveis: Object.keys(est.imoveis).length, visitas: Object.keys(est.visitas).length };
+        });
+      });
+    });
+  }
+  function abrirPasta() {
+    return carregarProjeto().then(function (r) { projetoPronto = true; msg(r ? 'Projeto carregado da pasta «' + PA.nome + '»: ' + r.imoveis + ' imóveis, ' + r.visitas + ' visitas' : 'Pasta «' + PA.nome + '» pronta (ainda sem projeto salvo)'); return salvarProjeto(true); })
+      .catch(function (e) { projetoPronto = false; erroPasta = 'Não foi possível ler o projeto da pasta: ' + e.message + '. Nada foi sobrescrito.'; render(); });
+  }
+  function pastaTela() {
+    var c = h('div', { class: 'card' }, h('b', { text: 'Pasta do projeto, neste computador' }));
+    if (!PA.suportado()) { c.appendChild(h('p', { class: 'dim', text: 'Este navegador não deixa gravar numa pasta. Abra a central no Google Chrome ou no Microsoft Edge, no computador. Enquanto isso, guarde o trabalho em Exportar → Projeto consolidado (.zip).' })); $main.appendChild(c); return; }
+    c.appendChild(h('p', { class: 'dim', text: 'Escolha uma pasta no computador (de preferência numa pasta com cópia de segurança). A central guarda ali tudo o que receber e gerar, em subpastas organizadas, e reabre o projeto sozinha na próxima vez. Os dados não saem deste computador.' }));
+    if (PA.raiz) {
+      c.appendChild(h('p', { html: '<b>Pasta ativa:</b> ' }, ));
+      c.lastChild.appendChild(document.createTextNode(PA.nome + ' · gravação automática ligada' + (PA.ultimo ? ' · último salvamento ' + new Date(PA.ultimo).toLocaleTimeString('pt-BR') : '')));
+      c.appendChild(h('div', { style: 'display:flex;gap:.5rem;flex-wrap:wrap' }, h('button', { class: 'b p', id: 'btn-salvar-agora', text: 'Salvar agora', onclick: function () { salvarProjeto(true).then(function () { msg('Projeto salvo na pasta'); }); } }), h('button', { class: 'b', id: 'btn-trocar-pasta', text: 'Trocar pasta', onclick: function () { PA.escolher().then(function () { projetoPronto = false; return abrirPasta(); }).catch(function () {}); } })));
+      c.appendChild(h('div', { id: 'estrutura', class: 'dim', style: 'margin-top:.6rem', text: 'Carregando lista de arquivos…' }));
+      PA.listar().then(function (ls) { var e = document.getElementById('estrutura'); if (!e) return; var pk = ls.filter(function (x) { return x.indexOf('recebidos/') === 0; }).length, ex = ls.filter(function (x) { return x.indexOf('exportacoes/') === 0; }).length, di = ls.filter(function (x) { return x.indexOf('distribuicao/') === 0; }).length; e.textContent = 'Na pasta: ' + pk + ' pacote(s) recebido(s), ' + di + ' arquivo(s) de distribuição, ' + ex + ' exportação(ões), ' + ls.length + ' arquivo(s) no total.'; });
+    } else if (PA.pendente) {
+      c.appendChild(h('p', { text: 'Pasta lembrada: «' + (PA.pendente.name || '') + '». O navegador pede a sua permissão para usá-la de novo.' }));
+      c.appendChild(h('button', { class: 'b p', id: 'btn-reconectar', text: 'Reconectar pasta e abrir o projeto', onclick: function () { PA.reconectar().then(abrirPasta).catch(function (e) { msg('Não reconectou: ' + e.message); }); } }));
+    } else {
+      c.appendChild(h('button', { class: 'b p', id: 'btn-escolher-pasta', text: 'Escolher pasta do projeto', onclick: function () { PA.escolher().then(abrirPasta).catch(function (e) { if (e && e.name !== 'AbortError') msg('Não foi possível usar a pasta: ' + e.message); }); } }));
+    }
+    if (erroPasta) c.appendChild(h('p', { class: 'ERRO', text: erroPasta }));
+    $main.appendChild(c);
+    $main.appendChild(h('div', { class: 'card' }, h('b', { text: 'Como a pasta fica organizada' }), h('pre', { class: 'dim', style: 'white-space:pre-wrap;margin:.4rem 0 0', text:
+      'recebidos/PEBI/2026-10-26/     pacotes originais dos celulares (nunca alterados)\n' +
+      'recebidos/PESN/…\n' +
+      'lista/                          listas de imóveis carregadas\n' +
+      'projeto/projeto_consolidado.zip base consolidada, regravada a cada carga\n' +
+      'projeto/registro.json           histórico de pacotes, conflitos e alertas\n' +
+      'projeto/historico/              uma cópia por dia\n' +
+      'distribuicao/                   arquivos enviados às equipes\n' +
+      'exportacoes/2026-10-26/         planilhas, shapefiles, PDF, fotos' })));
+    $main.appendChild(h('div', { class: 'card' }, h('b', { text: 'Cuidados' }), h('p', { class: 'dim', text: 'A pasta passa a guardar dados pessoais de moradores (LGPD): deixe-a em local protegido e faça cópia de segurança (HD externo ou nuvem autorizada). Apagar a pasta apaga o projeto; a central não guarda outra cópia.' })));
+  }
 
   /* ---------- exportações ---------- */
   function xlsx(opt) {
@@ -92,7 +176,7 @@
     proj: function () { E.consolidado(est, 'central').then(function (u8) { baixar('mosaico_projeto_consolidado_' + stamp() + '.zip', u8, 'application/zip'); }); },
     qa: function () { var q = E.qa(est).itens; baixar('mosaico_qualidade_' + stamp() + '.csv', T.stringify([['imovel_id', 'imovel', 'nivel', 'campo', 'mensagem', 'status']].concat(q.map(function (r) { return [r.imovel_id, r.imovel, r.nivel, r.campo, r.mensagem, r.status]; }))), 'text/csv'); }
   };
-  window.MOSAICO_CENTRAL = { est: function () { return est; }, ler: ler, xlsx: xlsx, csv: csv, pdf: pdfAsync, ACOES: ACOES };
+  window.MOSAICO_CENTRAL = { abrirPasta: function () { return abrirPasta(); }, est: function () { return est; }, ler: ler, xlsx: xlsx, csv: csv, pdf: pdfAsync, ACOES: ACOES };
 
   /* ---------- telas ---------- */
   function tabela(rows, cols) {
@@ -110,14 +194,15 @@
     $main.appendChild(h('div', { class: 'card' }, h('b', { text: 'Roteiro de acesso' }), h('p', { class: 'dim', text: 'O trajeto de cada dia e as paradas (visitas e fotos) saem no GeoJSON e no shapefile (trajetos_dia, paradas_dia), em SIRGAS 2000. Abra no QGIS para ver os acessos até cada imóvel.' }), h('button', { class: 'b p', id: 'btn-rota', text: 'Baixar roteiros (GeoJSON)', onclick: function () { baixar('mosaico_roteiros_' + stamp() + '.geojson', JSON.stringify({ type: 'FeatureCollection', features: E.rota(est) }), 'application/geo+json'); } })));
   }
   function render() {
-    document.getElementById('hdr').textContent = Object.keys(est.imoveis).length + ' imóveis · ' + Object.keys(est.visitas).length + ' visitas · ' + Object.keys(est.fotos).length + ' fotos';
-    $nav.textContent = ''; [['resumo', 'Resumo'], ['visitas', 'Visitas'], ['qualidade', 'Qualidade'], ['custos', 'Custos e roteiro'], ['exportar', 'Exportar'], ['mapa', 'Mapa offline'], ['lista', 'Distribuir aos celulares']].forEach(function (a) { $nav.appendChild(h('button', { class: aba === a[0] ? 'on' : '', text: a[1], onclick: function () { aba = a[0]; render(); } })); });
+    document.getElementById('hdr').textContent = Object.keys(est.imoveis).length + ' imóveis · ' + Object.keys(est.visitas).length + ' visitas · ' + Object.keys(est.fotos).length + ' fotos' + (PA.raiz ? ' · pasta: ' + PA.nome : '');
+    $nav.textContent = ''; [['resumo', 'Resumo'], ['pasta', 'Pasta do projeto'], ['visitas', 'Visitas'], ['qualidade', 'Qualidade'], ['custos', 'Custos e roteiro'], ['exportar', 'Exportar'], ['mapa', 'Mapa offline'], ['lista', 'Distribuir aos celulares']].forEach(function (a) { $nav.appendChild(h('button', { class: aba === a[0] ? 'on' : '', text: a[1], onclick: function () { aba = a[0]; render(); } })); });
     $main.textContent = '';
     var drop = h('div', { class: 'drop', id: 'drop' }, h('p', { html: '<b>Arraste aqui</b> os pacotes .zip dos celulares (e a lista de imóveis .csv/.json), ou ' }), h('button', { class: 'b p', id: 'btn-abrir', text: 'Escolher arquivos', onclick: entrada }));
     $main.appendChild(drop); msgs.forEach(function (m) { $main.appendChild(h('div', { class: 'msg', text: m })); });
-    if (aba === 'resumo') resumo(); else if (aba === 'visitas') visitas(); else if (aba === 'qualidade') qualidade(); else if (aba === 'exportar') exportar(); else if (aba === 'custos') custos(); else if (aba === 'mapa') MOSAICO_MAPA_OFF.render($main, h, baixar, msg); else lista();
+    if (aba === 'resumo') resumo(); else if (aba === 'pasta') pastaTela(); else if (aba === 'visitas') visitas(); else if (aba === 'qualidade') qualidade(); else if (aba === 'exportar') exportar(); else if (aba === 'custos') custos(); else if (aba === 'mapa') MOSAICO_MAPA_OFF.render($main, h, baixar, msg); else lista();
   }
   function resumo() {
+    if (PA.suportado() && !PA.raiz) $main.appendChild(h('div', { class: 'card msg' }, h('b', { text: PA.pendente ? 'Reconecte a pasta do projeto' : 'Sem pasta do projeto' }), h('p', { text: PA.pendente ? 'A central lembra da pasta «' + (PA.pendente.name || '') + '», mas o navegador precisa da sua permissão para abri-la de novo.' : 'Sem uma pasta, o que for carregado aqui se perde ao fechar a página. Escolha uma pasta para guardar tudo organizado.' }), h('button', { class: 'b p', id: 'btn-ir-pasta', text: PA.pendente ? 'Reconectar' : 'Escolher pasta', onclick: function () { aba = 'pasta'; render(); } })));
     var ids = Object.keys(est.imoveis), vs = Object.keys(est.visitas).map(function (k) { return est.visitas[k]; });
     var por = { PEBI: { t: 0, c: 0, a: 0 }, PESN: { t: 0, c: 0, a: 0 } };
     ids.forEach(function (id) { var p = est.imoveis[id].parque; if (!por[p]) return; por[p].t++; var v = est.visitas[id]; if (v) { if (v.status === 'concluida') por[p].c++; else por[p].a++; } });
@@ -154,7 +239,7 @@
     $main.appendChild(h('div', { class: 'card' }, h('b', { text: 'Pacote de distribuição e continuação, por parque' }),
       h('p', { class: 'dim', text: 'Cada equipe trabalha um parque. Depois de carregar aqui os pacotes dos celulares, gere o arquivo do parque e envie à equipe. No celular: Enviar → Importar lista. O app passa a mostrar o que já está na central e só o que falta fazer. Use o mesmo botão para a primeira distribuição (com a lista de imóveis carregada).' }),
       tabela(rows, [['parque', 'Parque'], ['imoveis', 'Imóveis'], ['concluidas', 'Concluídos na central'], ['andamento', 'Em andamento'], ['fazer', 'A fazer']]),
-      h('div', { style: 'margin-top:.6rem;display:flex;gap:.5rem;flex-wrap:wrap' }, ['PEBI', 'PESN'].map(function (p) { return h('button', { class: 'b p', id: 'btn-dist-' + p, text: 'Gerar arquivo ' + (p === 'PEBI' ? 'Biribiri' : 'Serra Negra'), onclick: function () { var d = E.distribuicao(est, p); if (!d.imoveis.length) return msg('Sem imóveis de ' + p + ' carregados'); baixar('mosaico_distribuicao_' + p + '_' + stamp() + '.json', JSON.stringify(d), 'application/json'); } }); }))));
+      h('div', { style: 'margin-top:.6rem;display:flex;gap:.5rem;flex-wrap:wrap' }, ['PEBI', 'PESN'].map(function (p) { return h('button', { class: 'b p', id: 'btn-dist-' + p, text: 'Gerar arquivo ' + (p === 'PEBI' ? 'Biribiri' : 'Serra Negra'), onclick: function () { var d = E.distribuicao(est, p); if (!d.imoveis.length) return msg('Sem imóveis de ' + p + ' carregados'); baixar('mosaico_distribuicao_' + p + '_' + stamp() + '.json', JSON.stringify(d), 'application/json', ['distribuicao']); } }); }))));
   }
   function lista() {
     distribuicao();
@@ -168,4 +253,5 @@
     $main.appendChild(h('div', { class: 'card' }, h('b', { text: 'Conferência da lista: ' + Object.keys(est.imoveis).length + ' imóveis, ' + dup.length + ' CAR repetido(s), ' + invalidos.length + ' CAR fora do padrão' }), dup.length ? tabela(dup, [['car', 'CAR'], ['ids', 'IDs']]) : null, invalidos.length ? tabela(invalidos, [['id', 'ID'], ['nome', 'Imóvel'], ['car', 'CAR']]) : null));
   }
   render();
+  PA.retomar().then(function (ok) { if (ok) return abrirPasta(); render(); });
 })();
