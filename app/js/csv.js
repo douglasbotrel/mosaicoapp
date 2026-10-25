@@ -20,7 +20,7 @@
   };
   T.stringify = function (rows, d) {
     d = d || ';';
-    return '﻿' + rows.map(function (r) { return r.map(function (x) { x = x == null ? '' : String(x); return /[";\n\r,\t]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }).join(d); }).join('\r\n') + '\r\n';
+    return '﻿' + rows.map(function (r) { return r.map(function (x) { x = x == null ? '' : String(x); if (/^[=+\-@]/.test(x) && !/^[+-]?[\d.,]+(e[+-]?\d+)?$/i.test(x)) x = "'" + x; return /[";\n\r,\t]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }).join(d); }).join('\r\n') + '\r\n';
   };
   function norm(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''); }
   var ALIAS = { id: 'id', codigo: 'id', cod: 'id', parque: 'parque', uc: 'parque', unidade: 'parque', nome: 'nome', imovel: 'nome', denominacao: 'nome', nome_do_imovel: 'nome', car: 'car', n_car: 'car', numero_car: 'car', cod_car: 'car', num_car: 'car', sigef: 'sigef', parcela_sigef: 'sigef', matricula: 'matricula', ccir: 'ccir', area_car_ha: 'area_car_ha', area_ha: 'area_car_ha', area: 'area_car_ha', municipio: 'municipio', comunidade: 'comunidade', declarante: 'declarante', obs: 'obs', observacao: 'obs' };

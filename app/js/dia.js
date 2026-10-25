@@ -124,9 +124,9 @@
     }
   };
   function abrirIniciar() {
-    var veic = 'carro', ped = numInput('Pessoas na equipe', 2), odo = numInput('Hodômetro inicial (km), se quiser'), eq = A.st.meta.equipe || 'A';
-    var sh = U.sheet('Iniciar jornada', [h('div', { class: 'field' }, h('div', { class: 'lab', text: 'Veículo' }), chipsSel(VEIC, function () { return veic; }, function (v) { veic = v; })), h('div', { class: 'field' }, h('div', { class: 'lab', text: 'Pessoas na equipe hoje' }), ped), h('div', { class: 'field' }, h('div', { class: 'lab', text: 'Hodômetro inicial (km)' }), odo), h('div', { class: 'field' }, h('div', { class: 'lab', text: 'Equipe' }), chipsSel([['A', 'Equipe A'], ['B', 'Equipe B']], function () { return eq; }, function (v) { eq = v; }))],
-      [h('button', { class: 'btn', text: 'Cancelar', onclick: function () { sh.close(); } }), h('button', { class: 'btn primary', id: 'ok-iniciar', text: 'Iniciar', onclick: function () { var n = nv(ped); if (!n || n < 1) { U.toast('Informe as pessoas'); return; } sh.close(); D.iniciar({ veiculo: veic, pessoas: n, odoIni: nv(odo), equipe: eq }).then(A.render); } })]);
+    var veic = 'carro', ped = numInput('Pessoas na equipe', 2), odo = numInput('Hodômetro inicial (km), se quiser'), eqIn = h('input', { type: 'text', value: A.st.meta.equipe || '', placeholder: 'Ex.: Equipe Biribiri', 'aria-label': 'Nome da equipe' });
+    var sh = U.sheet('Iniciar jornada', [h('div', { class: 'field' }, h('div', { class: 'lab', text: 'Veículo' }), chipsSel(VEIC, function () { return veic; }, function (v) { veic = v; })), h('div', { class: 'field' }, h('div', { class: 'lab', text: 'Pessoas na equipe hoje' }), ped), h('div', { class: 'field' }, h('div', { class: 'lab', text: 'Hodômetro inicial (km)' }), odo), h('div', { class: 'field' }, h('div', { class: 'lab', text: 'Equipe' }), eqIn)],
+      [h('button', { class: 'btn', text: 'Cancelar', onclick: function () { sh.close(); } }), h('button', { class: 'btn primary', id: 'ok-iniciar', text: 'Iniciar', onclick: function () { var n = nv(ped); if (!n || n < 1) { U.toast('Informe as pessoas'); return; } sh.close(); D.iniciar({ veiculo: veic, pessoas: n, odoIni: nv(odo), equipe: eqIn.value.trim() }).then(A.render); } })]);
   }
   function abrirEncerrar(d) {
     var odo = numInput('Hodômetro final (km)', d.odoFim), info = h('div', { class: 'dim', text: '' });

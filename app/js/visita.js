@@ -31,7 +31,7 @@
         var k = b.id + '.' + c.id; if (d[k] != null && d[k] !== '') return;
         if (c.auto === 'hoje') d[k] = C.hoje(); else if (c.auto && c.auto.indexOf('imovel.') === 0) { var x = imv[c.auto.slice(7)]; if (x != null && x !== '') d[k] = x; }
       }); });
-      if (novo) { if (!d['b0.responsavel_campo'] && A.st.meta.operador) d['b0.responsavel_campo'] = A.st.meta.operador; if (!d['b0.equipe']) d['b0.equipe'] = A.st.meta.equipe || 'A'; }
+      if (novo) { if (!d['b0.responsavel_campo'] && A.st.meta.operador) d['b0.responsavel_campo'] = A.st.meta.operador; if (!d['b0.equipe']) d['b0.equipe'] = A.st.meta.equipe || ('Equipe ' + (imv.parque === 'PEBI' ? 'Biribiri' : 'Serra Negra')); }
       cur = { imovel: imv, visita: v, fotos: fotos, bloco: 0, urls: [], novo: novo };
       if (novo) { cur.dirty = true; salvarAgora(true); }
       if (root.MOSAICO_DIA) root.MOSAICO_DIA.parada('visita', imv.nome);

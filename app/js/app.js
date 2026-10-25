@@ -2,8 +2,8 @@
 (function (root) {
   'use strict';
   var DB = root.MOSAICO_DB, U = root.MOSAICO_UI, h = U.h, C = root.MOSAICO_CORE, S = root.MOSAICO_SCHEMA, V = root.MOSAICO_VALIDAR, T = root.MOSAICO_CSV, PK = root.MOSAICO_PACOTE;
-  var VERSAO = '1.2.0';
-  var A = { VERSAO: VERSAO, st: { aba: 'imoveis', filtro: 'todos', busca: '', pagina: 1, imoveis: [], visitas: {}, fotosN: {}, meta: { operador: '', equipe: 'A', aparelho: '' }, tela: 'lista' } };
+  var VERSAO = '1.2.1';
+  var A = { VERSAO: VERSAO, st: { aba: 'imoveis', filtro: 'todos', busca: '', pagina: 1, imoveis: [], visitas: {}, fotosN: {}, meta: { operador: '', equipe: '', aparelho: '', parque: '' }, tela: 'lista' } };
   root.MOSAICO_APP = A;
   var $app = null, POR_PAGINA = 80;
 
@@ -141,7 +141,7 @@
     var sit = Object.assign({}, A.st.situacao), feitos = 0;
     (j.situacao || []).forEach(function (x) { var a = sit[x.imovelId]; if (!a || String(x.atualizado) >= String(a.atualizado)) sit[x.imovelId] = x; });
     arr.forEach(function (i) { if (sit[i.id] && sit[i.id].status === 'concluida') feitos++; });
-    m.parque = j.parque;
+    m.parque = j.parque; if (!m.equipe) m.equipe = 'Equipe ' + (j.parque === 'PEBI' ? 'Biribiri' : 'Serra Negra');
     return DB.putMany('imoveis', arr).then(function () { return DB.setMeta('situacao', sit); }).then(A.salvarCfg).then(A.carregar).then(function () { A.st.filtro = 'pend'; A.st.pagina = 1; A.render(); U.toast('Parque ' + j.parque + ': ' + arr.length + ' imóveis, ' + feitos + ' já concluídos na central, ' + (arr.length - feitos) + ' a fazer', 6000); });
   }
   A.importarLista = importarLista;
@@ -151,9 +151,9 @@
     var c = contagens();
     main.appendChild(h('div', { class: 'card' }, h('b', { text: 'Resumo neste aparelho' }), h('p', { class: 'dim', html: c.total + ' imóveis · ' + (c.ok + c.and) + ' visitas · ' + Object.keys(A.st.dias).length + ' jornadas · ' + A.st.nFotos + ' fotos (' + U.fmtBytes(A.st.fotosBytes || 0) + ')<br>Último envio: ' + (A.st.ultimoEnvio ? U.fmtData(A.st.ultimoEnvio) : 'nunca') + '<br>Não enviadas: ' + c.nenv })));
     var pp = h('select', { 'aria-label': 'Fotos por arquivo' }, [60, 100, 150, 300].map(function (n) { return h('option', { value: n, text: n + ' fotos por arquivo', selected: n === 100 }); }));
-    var so = h('input', { type: 'checkbox', id: 'so-novos', style: 'width:24px;height:24px' });
+    var so = h('input', { type: 'checkbox', id: 'so-novos', style: 'width:28px;height:28px;flex:none' });
     main.appendChild(h('div', { class: 'card' }, h('b', { text: '1. Gerar pacote para o computador' }), h('p', { class: 'dim', text: 'Cria um ou mais arquivos .zip com visitas, coordenadas e fotos georreferenciadas. Pode repetir à vontade: a central junta sem duplicar.' }),
-      h('div', { class: 'field' }, pp), h('label', { class: 'row', style: 'align-items:center' }, so, h('span', { text: 'Somente o que mudou desde o último envio' })),
+      h('div', { class: 'field' }, pp), h('label', { class: 'row', style: 'align-items:center;min-height:48px' }, so, h('span', { text: 'Somente o que mudou desde o último envio' })),
       h('button', { class: 'btn big primary', text: '📦 Gerar pacote', onclick: function () { gerarPacotes(+pp.value, so.checked, false); } }),
       h('div', { class: 'row' }, h('button', { class: 'btn', text: '↗ Compartilhar (WhatsApp, e-mail, Drive)', onclick: function () { gerarPacotes(+pp.value, so.checked, true); } }))));
     main.appendChild(h('div', { class: 'card' }, h('b', { text: '2. Restaurar de um pacote' }), h('p', { class: 'dim', text: 'Recupera visitas e fotos de um pacote (troca de aparelho ou recuperação).' }), h('button', { class: 'btn big', text: 'Restaurar pacote .zip', onclick: restaurar })));
@@ -189,7 +189,7 @@
       for (var p = 0; p < partes; p++) (function (p) {
         seq = seq.then(function () {
           document.getElementById('pg').textContent = 'Parte ' + (p + 1) + ' de ' + partes + '…';
-          return PK.montar({ imoveis: imoveis, visitas: visitas, fotos: fotos.slice(p * porArq, (p + 1) * porArq), dias: dias, custos: custos, aparelho: A.st.meta.aparelho, operador: A.st.meta.operador, parte: p + 1, partes: partes }).then(function (u8) {
+          return PK.montar({ imoveis: imoveis, visitas: visitas, fotos: fotos.slice(p * porArq, (p + 1) * porArq), dias: dias, custos: custos, aparelho: A.st.meta.aparelho, operador: A.st.meta.operador, parque: A.st.meta.parque, equipe: A.st.meta.equipe, parte: p + 1, partes: partes }).then(function (u8) {
             var nome = PK.nomePacote(A.st.meta.aparelho, p + 1, partes); arquivos.push({ nome: nome, u8: u8 });
           });
         });
@@ -232,9 +232,8 @@
   function telaAjustes(main) {
     var m = A.st.meta;
     function campo(rot, k, ph) { var i = h('input', { type: 'text', value: m[k] || '', placeholder: ph || '' }); i.addEventListener('input', function () { m[k] = i.value.trim(); A.salvarCfg(); }); return h('div', { class: 'field' }, h('div', { class: 'lab', text: rot }), i); }
-    main.appendChild(h('div', { class: 'card' }, campo('Nome deste aparelho', 'aparelho', 'Ex.: cel-Ana'), campo('Seu nome (operador)', 'operador', 'Entra em cada visita nova'),
-      h('div', { class: 'field' }, h('div', { class: 'lab', text: 'Parque desta equipe' }), h('div', { class: 'chips', id: 'chips-parque' }, [['', 'Ambos'], ['PEBI', 'Biribiri'], ['PESN', 'Serra Negra']].map(function (e) { return h('button', { class: 'chip' + ((m.parque || '') === e[0] ? ' on' : ''), text: e[1], onclick: function () { m.parque = e[0]; A.salvarCfg(); A.st.filtro = 'todos'; A.render(); } }); })), h('p', { class: 'dim', text: 'Mostra só os imóveis do parque da sua equipe. Importar o arquivo de distribuição da central já define isso.' })),
-      h('div', { class: 'field' }, h('div', { class: 'lab', text: 'Equipe padrão' }), h('div', { class: 'chips' }, [['A', 'Equipe A'], ['B', 'Equipe B']].map(function (e) { return h('button', { class: 'chip' + (m.equipe === e[0] ? ' on' : ''), text: e[1], onclick: function () { m.equipe = e[0]; A.salvarCfg(); A.render(); } }); })))));
+    main.appendChild(h('div', { class: 'card' }, campo('Nome deste aparelho', 'aparelho', 'Ex.: cel-Ana'), campo('Nome da equipe', 'equipe', 'Ex.: Equipe Biribiri'), campo('Seu nome (operador)', 'operador', 'Entra em cada visita nova'),
+      h('div', { class: 'field' }, h('div', { class: 'lab', text: 'Parque desta equipe' }), h('div', { class: 'chips', id: 'chips-parque' }, [['', 'Ambos'], ['PEBI', 'Biribiri'], ['PESN', 'Serra Negra']].map(function (e) { return h('button', { class: 'chip' + ((m.parque || '') === e[0] ? ' on' : ''), text: e[1], onclick: function () { m.parque = e[0]; A.salvarCfg(); A.st.filtro = 'todos'; A.render(); } }); })), h('p', { class: 'dim', text: 'Mostra só os imóveis do parque da sua equipe. Importar o arquivo de distribuição da central já define isso.' }))));
     main.appendChild(root.MOSAICO_DIA.cardAjustes());
     var arm = h('div', { class: 'dim', text: 'Calculando…' });
     main.appendChild(h('div', { class: 'card' }, h('b', { text: 'Armazenamento' }), arm));

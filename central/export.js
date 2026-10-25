@@ -4,7 +4,7 @@
   var req = typeof require !== 'undefined' ? require : null;
   var C = root.MOSAICO_CORE || req('../app/js/core.js'), S = root.MOSAICO_SCHEMA || req('../app/js/schema.js'), V = root.MOSAICO_VALIDAR || req('../app/js/validar.js'), PK = root.MOSAICO_PACOTE || req('../app/js/pacote.js');
   var E = {};
-  E.novoEstado = function () { return { imoveis: {}, visitas: {}, fotos: {}, dias: {}, custos: {}, pacotes: [], conflitos: [] }; };
+  E.novoEstado = function () { return { imoveis: {}, visitas: {}, fotos: {}, dias: {}, custos: {}, pacotes: [], conflitos: [], alertas: [] }; };
   /* incorpora um pacote já lido (PK.ler). Idempotente. */
   E.incorporar = function (est, pk, nome) {
     pk.imoveis.forEach(function (i) { est.imoveis[i.id] = Object.assign(est.imoveis[i.id] || {}, i); });
@@ -14,7 +14,9 @@
     (pk.dias || []).forEach(function (d) { var a = est.dias[d.id]; if (!a || String(d.atualizado) > String(a.atualizado)) est.dias[d.id] = d; });
     (pk.custos || []).forEach(function (c) { var a = est.custos[c.id]; if (!a || String(c.atualizado) > String(a.atualizado)) est.custos[c.id] = c; });
     var novas = 0; pk.fotos.forEach(function (f) { if (!est.fotos[f.id]) novas++; est.fotos[f.id] = f; });
-    est.pacotes.push({ nome: nome || '', aparelho: pk.manifest.aparelho, operador: pk.manifest.operador, criadoEm: pk.manifest.criadoEm, parte: pk.manifest.parte, partes: pk.manifest.partes, visitas: pk.visitas.length, fotos: pk.fotos.length, fotosNovas: novas });
+    var outroP = pk.manifest.parque ? pk.imoveis.filter(function (i) { return i.parque && i.parque !== pk.manifest.parque; }).length : 0;
+    if (outroP) est.alertas.push({ pacote: nome || '', aparelho: pk.manifest.aparelho, parque: pk.manifest.parque, n: outroP, msg: 'Pacote do aparelho ' + (pk.manifest.aparelho || '?') + ' (parque ' + pk.manifest.parque + ') traz ' + outroP + ' imóvel(is) de outro parque' });
+    est.pacotes.push({ nome: nome || '', parque: pk.manifest.parque || '', equipe: pk.manifest.equipe || '', aparelho: pk.manifest.aparelho, operador: pk.manifest.operador, criadoEm: pk.manifest.criadoEm, parte: pk.manifest.parte, partes: pk.manifest.partes, visitas: pk.visitas.length, fotos: pk.fotos.length, fotosNovas: novas });
     return { visitas: pk.visitas.length, fotosNovas: novas, conflitos: m.conflitos.length };
   };
   E.incorporarLista = function (est, imoveis) { imoveis.forEach(function (i) { est.imoveis[i.id] = Object.assign(est.imoveis[i.id] || {}, i); }); };

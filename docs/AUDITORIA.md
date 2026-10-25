@@ -1,4 +1,4 @@
-# Auditoria e testes: Mosaico 1.1.0 (25/10/2026)
+# Auditoria e testes: Mosaico 1.2.1 (25/10/2026)
 
 Ambiente: Chromium (Playwright) com perfil de celular (Pixel 7) e GPS simulado; Node 22; conferência independente das saídas com Pillow (EXIF), pyshp (shapefile), openpyxl (Excel), pdftotext/pdfinfo (PDF), `zipfile` (ZIP).
 
@@ -33,6 +33,29 @@ Correções feitas durante os testes: filtro de busca vazio escondia a lista; ba
 | Central | Aba Custos e roteiro; XLSX com abas Jornadas e Custos; shapefile `trajetos_dia` | Passou |
 | Mapa | Limites do KMZ desenhados; pacote de tiles (de servidor de teste) importado, desenhado **sem rede**, posição do GPS; central e script geram o pacote | Passou (com tiles falsos) |
 | Acessibilidade/layout | 5 abas em 360 px sem estouro, axe sem violações | Passou |
+
+## Acrescentado na 1.2 (equipes por parque) e auditoria geral de 25/10/2026
+| Área | Teste ou revisão | Resultado |
+|---|---|---|
+| Distribuição | Central gera arquivo por parque; celular importa, define o parque, mostra só os imóveis dele e abre em "A fazer" | Passou |
+| Continuação | Concluídos na central aparecem como "Na central ✓" e saem da fila; abrir um deles pede confirmação | Passou |
+| Troca de parque | Arquivo do outro parque é recusado com mensagem | Passou |
+| Liberar espaço | Só remove visitas e fotos que a central confirmou na mesma versão (`atualizado` igual e fotos suficientes); versão diferente não libera | Passou |
+| Pacote | Manifesto grava parque e equipe; central mostra e alerta se o pacote traz imóveis de outro parque | Passou |
+| Equipe | Campo "Equipe" passou de A/B para nome livre; padrão vem de Ajustes ou do parque | Passou |
+| Segurança (revisão) | Sem `eval`, sem script embutido, sem `localStorage`; texto digitado sempre entra como texto (não como HTML); nenhuma chamada a servidor externo no app | Passou |
+| Segurança (correção) | Política de segurança de conteúdo (CSP) no app: só arquivos do próprio site; bateria completa sem erros de console | Corrigido |
+| Segurança (correção) | Células de CSV que começam com `=`, `+`, `-`, `@` (texto) recebem apóstrofo, evitando fórmula ao abrir no Excel; números e coordenadas não são alterados | Corrigido |
+| Layout (correção) | Caixa "somente o que mudou" na aba Enviar tinha alvo de toque baixo; ampliada | Corrigido |
+| Regressão | Toda a bateria anterior (unitários, fluxo, pacote, dia, mapa, central, carga 600, layout, axe) | Passou |
+
+Achados que dependem de decisão ou de dado externo (não é defeito do código):
+- **Repositório público.** O projeto inteiro (central, testes, documentos, planilhas de exemplo) está num repositório público. Publique só a pasta `app/` ou torne o repositório privado depois do teste.
+- **CAR repetido no PESN.** O mesmo código aparece duas vezes no relatório original (N° 90 e 152).
+- **Sem login.** O controle de acesso é pelo arquivo entregue a cada equipe; só um servidor com login resolve de verdade (etapa 2, depende do IEF).
+- **Atualização do app no celular** entra na segunda abertura com internet (comportamento do service worker).
+- **Celulares da mesma equipe** podem coletar o mesmo imóvel; o conflito só aparece na central.
+- **Ainda não feito:** importar shapefile de imóveis para o mapa; teste em celular real (Android e iPhone); baixar imagem de satélite real com licença confirmada.
 
 ## Limites desta auditoria (não verificado)
 1. **Aparelhos reais.** Nenhum teste em celular físico, nem em iPhone/Safari. Câmera nativa, precisão do GPS sob mata, `capture` da câmera, Web Share e comportamento de memória variam por aparelho. **Faça um piloto de campo de meio dia antes da campanha.**

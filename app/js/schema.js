@@ -9,7 +9,7 @@
   var BLOCOS = [
     { id: 'b0', titulo: 'Visita', icone: '1', ajuda: 'Dados da visita. O imóvel já vem da lista.', campos: [
       { id: 'situacao_visita', rot: 'Situação da visita', t: 'select', req: true, opts: [['completa', 'Realizada, completa'], ['parcial', 'Realizada, parcial'], ['nao_localizado', 'Imóvel não localizado'], ['ausente', 'Ocupante ausente'], ['recusa', 'Recusou a visita'], ['inviavel', 'Acesso inviável']] },
-      { id: 'equipe', rot: 'Equipe', t: 'select', req: true, opts: [['A', 'Equipe A'], ['B', 'Equipe B'], ['outra', 'Outra']] },
+      { id: 'equipe', rot: 'Equipe', t: 'text', req: true, ph: 'Ex.: Equipe Biribiri' },
       { id: 'data_visita', rot: 'Data', t: 'date', req: true, auto: 'hoje' },
       { id: 'responsavel_campo', rot: 'Quem fez a visita', t: 'text', req: true, ph: 'Nomes da equipe' },
       { id: 'acompanhante_uc', rot: 'Acompanhante da UC', t: 'text', ph: 'Servidor da UC, se houve' },

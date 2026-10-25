@@ -17,6 +17,12 @@ node e2e_mapa.js
 node gen_pacotes.js 12 tmp
 node e2e_central.js
 node e2e_central2.js
+python3 -c "
+import random;random.seed(7);L=['id;parque;nome;car;area_car_ha;municipio']
+for i in range(1,601):
+    p='PEBI' if i<=200 else 'PESN';h=''.join(random.choice('0123456789ABCDEF') for _ in range(32))
+    L.append(f'{p}-{i:04d};{p};Imóvel teste {i};MG-{3121605 if p==\"PEBI\" else 3132503}-{h};{random.uniform(1,200):.2f}'.replace('.',',')+';Teste')
+open('tmp/imoveis_600.csv','w',encoding='utf-8').write(chr(10).join(L))"
 node e2e_distribuicao.js
 node e2e_audit.js
 echo TODOS OS TESTES PASSARAM

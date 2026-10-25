@@ -12,6 +12,10 @@ const dB=E.distribuicao(est,'PEBI'),dS=E.distribuicao(est,'PESN');
 assert.equal(dB.imoveis.length,4);assert.equal(dS.imoveis.length,2);assert.equal(dB.situacao.length,2);assert.equal(dS.situacao.length,0);
 assert(dB.imoveis.every(i=>i.parque==='PEBI'));
 fs.writeFileSync(OUT+'/dist_PEBI.json',JSON.stringify(dB));fs.writeFileSync(OUT+'/dist_PESN.json',JSON.stringify(dS));
+// alerta de parque trocado no pacote
+{const e2=E.novoEstado();E.incorporar(e2,{manifest:{aparelho:'cel-Z',operador:'Z',parque:'PESN',equipe:'Equipe Serra Negra',criadoEm:T1,parte:1,partes:1},imoveis:[{id:'PEBI-09',parque:'PEBI',nome:'x'},{id:'PESN-09',parque:'PESN',nome:'y'}],visitas:[],fotos:[],dias:[],custos:[]},'p.zip');
+ assert.equal(e2.alertas.length,1);assert.equal(e2.alertas[0].n,1);assert.equal(e2.pacotes[0].equipe,'Equipe Serra Negra');
+ const e3=E.novoEstado();E.incorporar(e3,{manifest:{aparelho:'cel-Y',parque:'PEBI'},imoveis:[{id:'PEBI-09',parque:'PEBI',nome:'x'}],visitas:[],fotos:[],dias:[],custos:[]},'q.zip');assert.equal(e3.alertas.length,0);}
 (async()=>{
  const s=await srv(path.join(__dirname,'../app'),8131),br=await chromium.launch();
  const ctx=await br.newContext({...devices['Pixel 7']});const pg=await ctx.newPage(),erros=[];pg.on('pageerror',e=>erros.push(e.message));
@@ -42,6 +46,9 @@ fs.writeFileSync(OUT+'/dist_PEBI.json',JSON.stringify(dB));fs.writeFileSync(OUT+
  assert(/Liberar espaço \(0 visitas\)/.test(await pg.locator('#btn-liberar').innerText()));
  assert.equal(await pg.evaluate(()=>window.MOSAICO_DB.count('visitas')),0);
  await pg.click('nav.tabs >> text=Imóveis');await pg.click('button.chip:has-text("Concluídos")');assert.equal(await pg.locator('.row-im .badge.central').count(),2,'PEBI-01 e PEBI-03 na central');
+ // equipe: nome livre, preenchido ao importar e gravado no pacote
+ await pg.click('nav.tabs >> text=Ajustes');assert.equal(await pg.locator('input[placeholder="Ex.: Equipe Biribiri"]').first().inputValue(),'Equipe Biribiri');
+ assert.equal(await pg.locator('text=Equipe A').count(),0);
  // 4) persiste ao recarregar
  await pg.reload();await pg.waitForSelector('.stat');assert.equal(await pg.locator('.stat div:first-child b').innerText(),'4');
  await pg.screenshot({path:OUT+'/30_distribuicao.png'});

@@ -20,7 +20,7 @@
         files.push({ name: nome, data: u8 });
         var m = {}; Object.keys(f).forEach(function (k) { if (k !== 'blob') m[k] = f[k]; }); m.arquivo = nome; m.bytes = u8.length; metas.push(m);
       });
-      var manifest = { app: 'mosaico', formato: 1, schema: S.SCHEMA_VERSION, criadoEm: new Date().toISOString(), aparelho: inp.aparelho || '', operador: inp.operador || '',
+      var manifest = { app: 'mosaico', formato: 1, schema: S.SCHEMA_VERSION, criadoEm: new Date().toISOString(), aparelho: inp.aparelho || '', operador: inp.operador || '', parque: inp.parque || '', equipe: inp.equipe || '',
         parte: inp.parte || 1, partes: inp.partes || 1, datum: 'SIRGAS 2000 (EPSG:4674)', n: { imoveis: imoveis.length, visitas: visitas.length, fotos: fotos.length, dias: dias.length, custos: custos.length } };
       var head = [{ name: 'manifest.json', data: json(manifest) }, { name: 'imoveis.json', data: json(imoveis) }, { name: 'visitas.json', data: json(visitas) }, { name: 'fotos.json', data: json(metas) }, { name: 'dias.json', data: JSON.stringify(dias) }, { name: 'custos.json', data: json(custos) }];
       return C.makeZip(head.concat(files));
