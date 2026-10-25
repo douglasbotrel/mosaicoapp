@@ -111,7 +111,7 @@
   }
   function render() {
     document.getElementById('hdr').textContent = Object.keys(est.imoveis).length + ' imóveis · ' + Object.keys(est.visitas).length + ' visitas · ' + Object.keys(est.fotos).length + ' fotos';
-    $nav.textContent = ''; [['resumo', 'Resumo'], ['visitas', 'Visitas'], ['qualidade', 'Qualidade'], ['custos', 'Custos e roteiro'], ['exportar', 'Exportar'], ['mapa', 'Mapa offline'], ['lista', 'Lista para celulares']].forEach(function (a) { $nav.appendChild(h('button', { class: aba === a[0] ? 'on' : '', text: a[1], onclick: function () { aba = a[0]; render(); } })); });
+    $nav.textContent = ''; [['resumo', 'Resumo'], ['visitas', 'Visitas'], ['qualidade', 'Qualidade'], ['custos', 'Custos e roteiro'], ['exportar', 'Exportar'], ['mapa', 'Mapa offline'], ['lista', 'Distribuir aos celulares']].forEach(function (a) { $nav.appendChild(h('button', { class: aba === a[0] ? 'on' : '', text: a[1], onclick: function () { aba = a[0]; render(); } })); });
     $main.textContent = '';
     var drop = h('div', { class: 'drop', id: 'drop' }, h('p', { html: '<b>Arraste aqui</b> os pacotes .zip dos celulares (e a lista de imóveis .csv/.json), ou ' }), h('button', { class: 'b p', id: 'btn-abrir', text: 'Escolher arquivos', onclick: entrada }));
     $main.appendChild(drop); msgs.forEach(function (m) { $main.appendChild(h('div', { class: 'msg', text: m })); });
@@ -148,7 +148,15 @@
     $main.appendChild(bt('x-fotos', 'Fotos organizadas (.zip)', 'Pasta por parque e imóvel, com coordenadas gravadas na imagem (EXIF).', ACOES.fotos));
     $main.appendChild(bt('x-proj', 'Projeto consolidado (.zip)', 'Guarda tudo em um arquivo; pode ser recarregado aqui ou restaurado num celular.', ACOES.proj));
   }
+  function distribuicao() {
+    var rows = ['PEBI', 'PESN'].map(function (p) { var d = E.distribuicao(est, p), c = d.situacao.filter(function (x) { return x.status === 'concluida'; }).length; return { parque: p === 'PEBI' ? 'PE do Biribiri' : 'PE da Serra Negra', imoveis: d.imoveis.length, concluidas: c, andamento: d.situacao.length - c, fazer: d.imoveis.length - c }; });
+    $main.appendChild(h('div', { class: 'card' }, h('b', { text: 'Pacote de distribuição e continuação, por parque' }),
+      h('p', { class: 'dim', text: 'Cada equipe trabalha um parque. Depois de carregar aqui os pacotes dos celulares, gere o arquivo do parque e envie à equipe. No celular: Enviar → Importar lista. O app passa a mostrar o que já está na central e só o que falta fazer. Use o mesmo botão para a primeira distribuição (com a lista de imóveis carregada).' }),
+      tabela(rows, [['parque', 'Parque'], ['imoveis', 'Imóveis'], ['concluidas', 'Concluídos na central'], ['andamento', 'Em andamento'], ['fazer', 'A fazer']]),
+      h('div', { style: 'margin-top:.6rem;display:flex;gap:.5rem;flex-wrap:wrap' }, ['PEBI', 'PESN'].map(function (p) { return h('button', { class: 'b p', id: 'btn-dist-' + p, text: 'Gerar arquivo ' + (p === 'PEBI' ? 'Biribiri' : 'Serra Negra'), onclick: function () { var d = E.distribuicao(est, p); if (!d.imoveis.length) return msg('Sem imóveis de ' + p + ' carregados'); baixar('mosaico_distribuicao_' + p + '_' + stamp() + '.json', JSON.stringify(d), 'application/json'); } }); }))));
+  }
   function lista() {
+    distribuicao();
     $main.appendChild(h('div', { class: 'card' }, h('b', { text: 'Lista de imóveis para os celulares' }),
       h('p', { class: 'dim', text: 'Prepare uma planilha com as colunas: id; parque (PEBI ou PESN); nome; car; sigef; matricula; ccir; area_car_ha; municipio; comunidade. Carregue aqui para conferir e gerar o arquivo que os celulares importam. A lista pode ter centenas de linhas.' }),
       h('button', { class: 'b', text: 'Baixar modelo CSV', onclick: function () { baixar('modelo_lista_imoveis.csv', T.stringify([['id', 'parque', 'nome', 'car', 'sigef', 'matricula', 'ccir', 'area_car_ha', 'municipio', 'comunidade'], ['PEBI-001', 'PEBI', 'Exemplo', 'MG-3121605-XXXX.XXXX.XXXX.XXXX.XXXX.XXXX.XXXX.XXXX', '', '', '', '10,5', 'Diamantina', '']]), 'text/csv'); } }), ' ',

@@ -18,6 +18,13 @@
     return { visitas: pk.visitas.length, fotosNovas: novas, conflitos: m.conflitos.length };
   };
   E.incorporarLista = function (est, imoveis) { imoveis.forEach(function (i) { est.imoveis[i.id] = Object.assign(est.imoveis[i.id] || {}, i); }); };
+  /* Pacote de distribuição/continuação de um parque: lista de imóveis + situação já consolidada na central. */
+  E.distribuicao = function (est, parque) {
+    var ims = Object.keys(est.imoveis).map(function (k) { return est.imoveis[k]; }).filter(function (i) { return i.parque === parque; });
+    var nf = {}; Object.keys(est.fotos).forEach(function (k) { var id = est.fotos[k].imovelId; nf[id] = (nf[id] || 0) + 1; });
+    var sit = []; ims.forEach(function (i) { var v = est.visitas[i.id]; if (v) sit.push({ imovelId: i.id, status: v.status, atualizado: v.atualizado, aparelho: v.aparelho || '', operador: v.operador || '', fotos: nf[i.id] || 0 }); });
+    return { app: 'mosaico', tipo: 'distribuicao', formato: 1, parque: parque, geradoEm: new Date().toISOString(), datum: 'SIRGAS 2000 (EPSG:4674)', imoveis: ims, situacao: sit };
+  };
   E.fotosDe = function (est, id) { return Object.keys(est.fotos).map(function (k) { return est.fotos[k]; }).filter(function (f) { return f.imovelId === id; }).sort(function (a, b) { return a.t < b.t ? -1 : 1; }); };
   E.rotulo = function (campo, v) {
     if (v == null || v === '') return '';

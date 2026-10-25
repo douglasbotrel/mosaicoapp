@@ -2,13 +2,14 @@
 (function (root) {
   'use strict';
   var DB = root.MOSAICO_DB, U = root.MOSAICO_UI, h = U.h, C = root.MOSAICO_CORE, S = root.MOSAICO_SCHEMA, V = root.MOSAICO_VALIDAR, T = root.MOSAICO_CSV, PK = root.MOSAICO_PACOTE;
-  var VERSAO = '1.0.0';
+  var VERSAO = '1.2.0';
   var A = { VERSAO: VERSAO, st: { aba: 'imoveis', filtro: 'todos', busca: '', pagina: 1, imoveis: [], visitas: {}, fotosN: {}, meta: { operador: '', equipe: 'A', aparelho: '' }, tela: 'lista' } };
   root.MOSAICO_APP = A;
   var $app = null, POR_PAGINA = 80;
 
   A.carregar = function () {
-    return Promise.all([DB.all('imoveis'), DB.all('visitas'), DB.fotosMeta(), DB.getMeta('cfg', null), DB.getMeta('ultimoEnvio', null), DB.all('dias'), DB.all('custos')]).then(function (r) {
+    return Promise.all([DB.all('imoveis'), DB.all('visitas'), DB.fotosMeta(), DB.getMeta('cfg', null), DB.getMeta('ultimoEnvio', null), DB.all('dias'), DB.all('custos'), DB.getMeta('situacao', {})]).then(function (r) {
+      A.st.situacao = r[7] || {};
       A.st.dias = {}; r[5].forEach(function (d) { A.st.dias[d.id] = d; }); A.st.custos = r[6];
       A.st.imoveis = r[0]; A.st.visitas = {}; r[1].forEach(function (v) { A.st.visitas[v.imovelId] = v; });
       A.st.fotosN = {}; A.st.fotosBytes = 0; r[2].forEach(function (f) { A.st.fotosN[f.imovelId] = (A.st.fotosN[f.imovelId] || 0) + 1; A.st.fotosBytes += f.bytes; });
@@ -20,8 +21,9 @@
   };
   A.salvarCfg = function () { return DB.setMeta('cfg', A.st.meta); };
 
-  function statusDe(imv) { var v = A.st.visitas[imv.id]; return v ? v.status : 'novo'; }
-  var ROT = { novo: 'Pendente', rascunho: 'Em andamento', pendente: 'Voltar', concluida: 'Concluído' };
+  function statusDe(imv) { var v = A.st.visitas[imv.id]; if (v) return v.status; var s = A.st.situacao[imv.id]; return s && s.status === 'concluida' ? 'central' : 'novo'; }
+  function meus() { var p = A.st.meta.parque; return p ? A.st.imoveis.filter(function (i) { return i.parque === p; }) : A.st.imoveis; }
+  var ROT = { central: 'Na central ✓', novo: 'Pendente', rascunho: 'Em andamento', pendente: 'Voltar', concluida: 'Concluído' };
   A.statusDe = statusDe;
 
   A.render = function () {
@@ -43,12 +45,12 @@
   /* ---------- lista ---------- */
   function filtrar() {
     var q = String(A.st.busca || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, ''), f = A.st.filtro;
-    return A.st.imoveis.filter(function (i) {
+    return meus().filter(function (i) {
       var s = statusDe(i);
       if (f === 'PEBI' || f === 'PESN') { if (i.parque !== f) return false; }
       else if (f === 'pend') { if (s !== 'novo') return false; }
       else if (f === 'and') { if (s !== 'rascunho' && s !== 'pendente') return false; }
-      else if (f === 'ok') { if (s !== 'concluida') return false; }
+      else if (f === 'ok') { if (s !== 'concluida' && s !== 'central') return false; }
       else if (f === 'nenv') { var v = A.st.visitas[i.id]; if (!v || v.exp === v.atualizado) return false; }
       if (!q) return true;
       var hay = (i.nome + i.id + (i.car || '') + (i.comunidade || '') + (i.municipio || '') + (i.matricula || '')).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -56,13 +58,13 @@
     }).sort(function (a, b) { return a.parque === b.parque ? String(a.nome).localeCompare(b.nome, 'pt-BR', { numeric: true }) : a.parque < b.parque ? -1 : 1; });
   }
   function contagens() {
-    var c = { total: A.st.imoveis.length, ok: 0, and: 0, nenv: 0 };
-    A.st.imoveis.forEach(function (i) { var v = A.st.visitas[i.id]; if (!v) return; if (v.status === 'concluida') c.ok++; else c.and++; if (v.exp !== v.atualizado) c.nenv++; });
-    c.pend = c.total - c.ok - c.and; return c;
+    var L = meus(), c = { total: L.length, ok: 0, and: 0, cen: 0, nenv: 0 };
+    L.forEach(function (i) { var v = A.st.visitas[i.id]; if (!v) { if (statusDe(i) === 'central') c.cen++; return; } if (v.status === 'concluida') c.ok++; else c.and++; if (v.exp !== v.atualizado) c.nenv++; });
+    c.pend = c.total - c.ok - c.and - c.cen; return c;
   }
   function telaLista(main) {
     var c = contagens();
-    main.appendChild(h('div', { class: 'stat' }, [[c.total, 'imóveis'], [c.ok, 'concluídos'], [c.and, 'em andamento'], [c.pend, 'pendentes']].map(function (x) { return h('div', {}, h('b', { text: x[0] }), h('span', { text: x[1] })); })));
+    main.appendChild(h('div', { class: 'stat' }, [[c.total, 'imóveis'], [c.ok + c.cen, 'concluídos'], [c.and, 'em andamento'], [c.pend, 'pendentes']].map(function (x) { return h('div', {}, h('b', { text: x[0] }), h('span', { text: x[1] })); })));
     var ue = A.st.ultimoEnvio, horas = ue ? (Date.now() - new Date(ue).getTime()) / 36e5 : null;
     if (c.nenv > 0 && (horas == null || horas > 24 || c.nenv >= 10)) main.appendChild(h('div', { class: 'banner', role: 'alert', text: c.nenv + ' visita(s) ainda não enviadas ao computador. Gere o pacote na aba Enviar.' }));
     if (!c.total) {
@@ -74,7 +76,7 @@
     var lista = h('div', { id: 'lista' });
     busca.addEventListener('input', U.debounce(function () { A.st.busca = busca.value; A.st.pagina = 1; pintar(); }, 150));
     main.appendChild(busca);
-    var F = [['todos', 'Todos'], ['PEBI', 'Biribiri'], ['PESN', 'Serra Negra'], ['pend', 'Pendentes (' + c.pend + ')'], ['and', 'Andamento (' + c.and + ')'], ['ok', 'Concluídos (' + c.ok + ')'], ['nenv', 'Não enviados (' + c.nenv + ')']];
+    var F = [['todos', 'Todos']].concat(A.st.meta.parque ? [] : [['PEBI', 'Biribiri'], ['PESN', 'Serra Negra']]).concat([['pend', 'A fazer (' + c.pend + ')'], ['and', 'Andamento (' + c.and + ')'], ['ok', 'Concluídos (' + (c.ok + c.cen) + ')'], ['nenv', 'Não enviados (' + c.nenv + ')']]);
     var fl = h('div', { class: 'filtros', role: 'group', 'aria-label': 'Filtros' });
     F.forEach(function (f) { fl.appendChild(h('button', { class: 'chip' + (A.st.filtro === f[0] ? ' on' : ''), text: f[1], onclick: function () { A.st.filtro = f[0]; A.st.pagina = 1; A.render(); } })); });
     main.appendChild(fl); main.appendChild(lista);
@@ -90,16 +92,19 @@
   }
   function linha(i) {
     var s = statusDe(i), v = A.st.visitas[i.id], nf = A.st.fotosN[i.id] || 0;
-    return h('button', { class: 'row-im', onclick: function () { A.abrirVisita(i.id); } },
+    return h('button', { class: 'row-im', onclick: function () {
+      var sc = A.st.situacao[i.id];
+      if (s === 'central') { U.confirmar('Já concluído na central', 'Este imóvel já foi concluído e enviado' + (sc && sc.aparelho ? ' (aparelho ' + sc.aparelho + ')' : '') + '. Abrir de novo cria uma nova versão que pode substituir a da central. Abrir mesmo assim?', 'Abrir').then(function (ok) { if (ok) A.abrirVisita(i.id); }); return; }
+      A.abrirVisita(i.id); } },
       h('span', { class: 'pk', text: i.parque }),
       h('span', { class: 'grow' }, h('span', { class: 't', text: i.nome }), h('br'), h('span', { class: 's', text: [i.car ? i.car.slice(-9) : '', i.comunidade || i.municipio || '', nf ? nf + ' foto(s)' : ''].filter(Boolean).join(' · ') || i.id })),
       v && v.exp !== v.atualizado ? h('span', { class: 'badge', title: 'Não enviado', text: '⬆' }) : null,
       h('span', { class: 'badge ' + s, text: ROT[s] }));
   }
   function novoImovel() {
-    var nome = h('input', { type: 'text', placeholder: 'Nome ou referência do imóvel', 'aria-label': 'Nome' }), car = h('input', { type: 'text', placeholder: 'Nº do CAR (se souber)', 'aria-label': 'CAR', autocapitalize: 'characters' }), par = 'PEBI';
+    var nome = h('input', { type: 'text', placeholder: 'Nome ou referência do imóvel', 'aria-label': 'Nome' }), car = h('input', { type: 'text', placeholder: 'Nº do CAR (se souber)', 'aria-label': 'CAR', autocapitalize: 'characters' }), par = A.st.meta.parque || 'PEBI';
     var chipsEl = h('div', { class: 'chips' });
-    function pintaCh() { U.clear(chipsEl); S.PARQUES.forEach(function (p) { chipsEl.appendChild(h('button', { class: 'chip' + (par === p[0] ? ' on' : ''), text: p[1], onclick: function () { par = p[0]; pintaCh(); } })); }); }
+    function pintaCh() { U.clear(chipsEl); S.PARQUES.filter(function (p) { return !A.st.meta.parque || p[0] === A.st.meta.parque; }).forEach(function (p) { chipsEl.appendChild(h('button', { class: 'chip' + (par === p[0] ? ' on' : ''), text: p[1], onclick: function () { par = p[0]; pintaCh(); } })); }); }
     pintaCh();
     var sh = U.sheet('Novo imóvel (achado em campo)', [h('div', { class: 'field' }, h('div', { class: 'lab', text: 'Parque' }), chipsEl), h('div', { class: 'field' }, h('div', { class: 'lab', text: 'Nome' }), nome), h('div', { class: 'field' }, h('div', { class: 'lab', text: 'CAR' }), car)],
       [h('button', { class: 'btn', text: 'Cancelar', onclick: function () { sh.close(); } }), h('button', { class: 'btn primary', text: 'Criar e abrir', onclick: function () {
@@ -114,9 +119,9 @@
       var f = inp.files[0]; if (!f) return;
       f.text().then(function (txt) {
         var arr, av = [];
-        if (/^\s*[\[{]/.test(txt)) { var j = JSON.parse(txt); arr = Array.isArray(j) ? j : (j.imoveis || []); }
+        if (/^\s*[\[{]/.test(txt)) { var j = JSON.parse(txt); if (j && j.tipo === 'distribuicao') return importarDistribuicao(j); arr = Array.isArray(j) ? j : (j.imoveis || []); }
         else { var r = T.imoveisDeTabela(T.parse(txt)); arr = r.imoveis; av = r.avisos; }
-        arr = arr.filter(function (i) { return i && i.id && (i.parque === 'PEBI' || i.parque === 'PESN'); });
+        arr = arr.filter(function (i) { return i && i.id && (i.parque === 'PEBI' || i.parque === 'PESN') && (!A.st.meta.parque || i.parque === A.st.meta.parque); });
         if (!arr.length) { U.toast(av[0] || 'Nenhum imóvel válido no arquivo', 4000); return; }
         var existentes = {}; A.st.imoveis.forEach(function (i) { existentes[i.id] = i; });
         var novos = 0, atual = 0; arr.forEach(function (i) { if (existentes[i.id]) { atual++; arr[arr.indexOf(i)] = Object.assign({}, existentes[i.id], i); } else novos++; });
@@ -124,6 +129,20 @@
       }).catch(function (e) { U.toast('Erro: ' + e.message, 4500); });
     });
     inp.click();
+  }
+  /* arquivo de distribuição/continuação gerado pela central: imóveis do parque + situação já consolidada */
+  function importarDistribuicao(j) {
+    if (j.app !== 'mosaico' || (j.parque !== 'PEBI' && j.parque !== 'PESN')) throw new Error('Arquivo de distribuição inválido');
+    if (j.formato > 1) throw new Error('Arquivo de versão mais nova; atualize o aplicativo');
+    var m = A.st.meta;
+    if (m.parque && m.parque !== j.parque) throw new Error('Este aparelho é da equipe ' + m.parque + ' e o arquivo é de ' + j.parque + '. Se mudou de equipe, troque em Ajustes.');
+    var existentes = {}; A.st.imoveis.forEach(function (i) { existentes[i.id] = i; });
+    var arr = (j.imoveis || []).filter(function (i) { return i && i.id && i.parque === j.parque; }).map(function (i) { return Object.assign({}, existentes[i.id] || {}, i); });
+    var sit = Object.assign({}, A.st.situacao), feitos = 0;
+    (j.situacao || []).forEach(function (x) { var a = sit[x.imovelId]; if (!a || String(x.atualizado) >= String(a.atualizado)) sit[x.imovelId] = x; });
+    arr.forEach(function (i) { if (sit[i.id] && sit[i.id].status === 'concluida') feitos++; });
+    m.parque = j.parque;
+    return DB.putMany('imoveis', arr).then(function () { return DB.setMeta('situacao', sit); }).then(A.salvarCfg).then(A.carregar).then(function () { A.st.filtro = 'pend'; A.st.pagina = 1; A.render(); U.toast('Parque ' + j.parque + ': ' + arr.length + ' imóveis, ' + feitos + ' já concluídos na central, ' + (arr.length - feitos) + ' a fazer', 6000); });
   }
   A.importarLista = importarLista;
 
@@ -138,7 +157,22 @@
       h('button', { class: 'btn big primary', text: '📦 Gerar pacote', onclick: function () { gerarPacotes(+pp.value, so.checked, false); } }),
       h('div', { class: 'row' }, h('button', { class: 'btn', text: '↗ Compartilhar (WhatsApp, e-mail, Drive)', onclick: function () { gerarPacotes(+pp.value, so.checked, true); } }))));
     main.appendChild(h('div', { class: 'card' }, h('b', { text: '2. Restaurar de um pacote' }), h('p', { class: 'dim', text: 'Recupera visitas e fotos de um pacote (troca de aparelho ou recuperação).' }), h('button', { class: 'btn big', text: 'Restaurar pacote .zip', onclick: restaurar })));
-    main.appendChild(h('div', { class: 'card' }, h('b', { text: '3. Lista de imóveis' }), h('p', { class: 'dim', text: 'Importar CSV/JSON com imóveis (id, parque, nome, car, sigef, matrícula, ccir, area_car_ha).' }), h('button', { class: 'btn big', text: 'Importar lista', onclick: importarLista })));
+    main.appendChild(h('div', { class: 'card' }, h('b', { text: '3. Lista de imóveis ou continuação' }), h('p', { class: 'dim', text: 'Importe o arquivo do parque gerado na central (.json): traz os imóveis e o que já está concluído. Também aceita CSV com imóveis (id, parque, nome, car, sigef, matrícula, ccir, area_car_ha).' }), h('button', { class: 'btn big', text: 'Importar lista', onclick: importarLista })));
+    var cf = confirmados();
+    main.appendChild(h('div', { class: 'card' }, h('b', { text: '4. Liberar espaço (já na central)' }), h('p', { class: 'dim', text: 'Depois que a central importar seus pacotes e você importar o arquivo de continuação, remova daqui as visitas e fotos que a central já tem, na mesma versão. O imóvel continua na lista como "Na central". Só entram aqui as que a central confirmou.' }),
+      h('button', { class: 'btn big', id: 'btn-liberar', text: 'Liberar espaço (' + cf.length + ' visita' + (cf.length === 1 ? '' : 's') + ')', disabled: cf.length ? null : true, onclick: liberarEspaco })));
+  }
+  function confirmados() {
+    return Object.keys(A.st.visitas).map(function (k) { return A.st.visitas[k]; }).filter(function (v) { var s = A.st.situacao[v.imovelId]; return v.status === 'concluida' && s && s.status === 'concluida' && s.atualizado === v.atualizado && (s.fotos || 0) >= (A.st.fotosN[v.imovelId] || 0); });
+  }
+  function liberarEspaco() {
+    var cf = confirmados(); if (!cf.length) return;
+    var nf = cf.reduce(function (n, v) { return n + (A.st.fotosN[v.imovelId] || 0); }, 0);
+    U.confirmar('Liberar espaço?', 'Remove deste aparelho ' + cf.length + ' visita(s) e ' + nf + ' foto(s) que a central já recebeu. Não afeta os dados da central.', 'Remover daqui', true).then(function (ok) {
+      if (!ok) return;
+      cf.reduce(function (p, v) { return p.then(function () { return DB.fotosDe(v.imovelId).then(function (fs) { return fs.reduce(function (q, f) { return q.then(function () { return DB.del('fotos', f.id); }); }, Promise.resolve()); }).then(function () { return DB.del('visitas', v.imovelId); }); }); }, Promise.resolve())
+        .then(A.carregar).then(function () { A.render(); U.toast(cf.length + ' visita(s) removidas deste aparelho', 4000); });
+    });
   }
   function gerarPacotes(porArq, soNovos, compartilhar) {
     var visitas = Object.keys(A.st.visitas).map(function (k) { return A.st.visitas[k]; });
@@ -199,6 +233,7 @@
     var m = A.st.meta;
     function campo(rot, k, ph) { var i = h('input', { type: 'text', value: m[k] || '', placeholder: ph || '' }); i.addEventListener('input', function () { m[k] = i.value.trim(); A.salvarCfg(); }); return h('div', { class: 'field' }, h('div', { class: 'lab', text: rot }), i); }
     main.appendChild(h('div', { class: 'card' }, campo('Nome deste aparelho', 'aparelho', 'Ex.: cel-Ana'), campo('Seu nome (operador)', 'operador', 'Entra em cada visita nova'),
+      h('div', { class: 'field' }, h('div', { class: 'lab', text: 'Parque desta equipe' }), h('div', { class: 'chips', id: 'chips-parque' }, [['', 'Ambos'], ['PEBI', 'Biribiri'], ['PESN', 'Serra Negra']].map(function (e) { return h('button', { class: 'chip' + ((m.parque || '') === e[0] ? ' on' : ''), text: e[1], onclick: function () { m.parque = e[0]; A.salvarCfg(); A.st.filtro = 'todos'; A.render(); } }); })), h('p', { class: 'dim', text: 'Mostra só os imóveis do parque da sua equipe. Importar o arquivo de distribuição da central já define isso.' })),
       h('div', { class: 'field' }, h('div', { class: 'lab', text: 'Equipe padrão' }), h('div', { class: 'chips' }, [['A', 'Equipe A'], ['B', 'Equipe B']].map(function (e) { return h('button', { class: 'chip' + (m.equipe === e[0] ? ' on' : ''), text: e[1], onclick: function () { m.equipe = e[0]; A.salvarCfg(); A.render(); } }); })))));
     main.appendChild(root.MOSAICO_DIA.cardAjustes());
     var arm = h('div', { class: 'dim', text: 'Calculando…' });
@@ -214,7 +249,7 @@
         var inp = h('input', { type: 'text', placeholder: 'Digite APAGAR', 'aria-label': 'Confirmação' });
         var sh = U.sheet('Apagar tudo?', [h('p', { text: c.nenv ? c.nenv + ' visita(s) NÃO foram enviadas. Os dados serão perdidos.' : 'Esta ação não pode ser desfeita.' }), inp], [h('button', { class: 'btn', text: 'Cancelar', onclick: function () { sh.close(); } }), h('button', { class: 'btn danger', text: 'Apagar', onclick: function () {
           if (inp.value.trim().toUpperCase() !== 'APAGAR') { U.toast('Digite APAGAR para confirmar'); return; }
-          Promise.all(['imoveis', 'visitas', 'fotos'].map(function (s) { return DB.clear(s); })).then(A.carregar).then(function () { sh.close(); A.render(); U.toast('Dados apagados'); });
+          Promise.all(['imoveis', 'visitas', 'fotos'].map(function (s) { return DB.clear(s); }).concat([DB.setMeta('situacao', {})])).then(A.carregar).then(function () { sh.close(); A.render(); U.toast('Dados apagados'); });
         } })]);
       } })));
   }

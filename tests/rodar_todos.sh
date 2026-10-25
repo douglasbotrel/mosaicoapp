@@ -17,5 +17,6 @@ node e2e_mapa.js
 node gen_pacotes.js 12 tmp
 node e2e_central.js
 node e2e_central2.js
+node e2e_distribuicao.js
 node e2e_audit.js
 echo TODOS OS TESTES PASSARAM

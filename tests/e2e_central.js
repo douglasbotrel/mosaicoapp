@@ -16,6 +16,6 @@ const OUT=path.join(__dirname,'tmp');
  await pg.check('#ck-pess');
  for(const [id,nome] of [['x-xlsx','dados.xlsx'],['x-csv','visitas.csv'],['x-shp','shp.zip'],['x-gj','geo.geojson'],['x-pdf','fichas.pdf'],['x-fotos','fotos.zip'],['x-proj','proj.zip']]){
   const [dl]=await Promise.all([pg.waitForEvent('download',{timeout:60000}),pg.click('#'+id)]);await dl.saveAs(OUT+'/central_'+nome);console.log(nome,fs.statSync(OUT+'/central_'+nome).size)}
- await pg.click('nav >> text=Lista para celulares');await pg.screenshot({path:OUT+'/22_central_lista.png'});
+ await pg.click('nav >> text=Distribuir aos celulares');await pg.screenshot({path:OUT+'/22_central_lista.png'});
  console.log('erros',erros);await br.close();s.close();
 })().catch(e=>{console.error('FALHOU',e);process.exit(1)});
