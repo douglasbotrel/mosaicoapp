@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   var DB = root.MOSAICO_DB, U = root.MOSAICO_UI, h = U.h, C = root.MOSAICO_CORE, S = root.MOSAICO_SCHEMA, V = root.MOSAICO_VALIDAR, T = root.MOSAICO_CSV, PK = root.MOSAICO_PACOTE;
-  var VERSAO = '1.3.0';
+  var VERSAO = '1.3.1';
   var A = { VERSAO: VERSAO, st: { aba: 'imoveis', filtro: 'todos', busca: '', pagina: 1, imoveis: [], visitas: {}, fotosN: {}, meta: { operador: '', equipe: '', aparelho: '', parque: '' }, tela: 'lista' } };
   root.MOSAICO_APP = A;
   var $app = null, POR_PAGINA = 80;
@@ -21,6 +21,12 @@
   };
   A.salvarCfg = function () { return DB.setMeta('cfg', A.st.meta); };
 
+  /* mescla imóvel importado com o local; correção feita em campo e ainda não devolvida pela central não é sobrescrita */
+  function mesclaImovel(ex, inc) {
+    if (ex && ex.corrigidoEm && !(inc.corrigidoEm && inc.corrigidoEm >= ex.corrigidoEm)) return Object.assign({}, inc, ex);
+    return Object.assign({}, ex || {}, inc);
+  }
+  A.mesclaImovel = mesclaImovel;
   function statusDe(imv) { var v = A.st.visitas[imv.id]; if (v) return v.status; var s = A.st.situacao[imv.id]; return s && s.status === 'concluida' ? 'central' : 'novo'; }
   function meus() { var p = A.st.meta.parque; return p ? A.st.imoveis.filter(function (i) { return i.parque === p; }) : A.st.imoveis; }
   var ROT = { central: 'Na central ✓', novo: 'Pendente', rascunho: 'Em andamento', pendente: 'Voltar', concluida: 'Concluído' };
@@ -124,7 +130,7 @@
         arr = arr.filter(function (i) { return i && i.id && (i.parque === 'PEBI' || i.parque === 'PESN') && (!A.st.meta.parque || i.parque === A.st.meta.parque); });
         if (!arr.length) { U.toast(av[0] || 'Nenhum imóvel válido no arquivo', 4000); return; }
         var existentes = {}; A.st.imoveis.forEach(function (i) { existentes[i.id] = i; });
-        var novos = 0, atual = 0; arr.forEach(function (i) { if (existentes[i.id]) { atual++; arr[arr.indexOf(i)] = Object.assign({}, existentes[i.id], i); } else novos++; });
+        var novos = 0, atual = 0; arr.forEach(function (i) { if (existentes[i.id]) { atual++; arr[arr.indexOf(i)] = mesclaImovel(existentes[i.id], i); } else novos++; });
         return DB.putMany('imoveis', arr).then(A.carregar).then(function () { A.render(); U.toast(novos + ' novos, ' + atual + ' atualizados' + (av.length ? ' · ' + av.length + ' avisos' : ''), 4500); });
       }).catch(function (e) { U.toast('Erro: ' + e.message, 4500); });
     });
@@ -137,7 +143,7 @@
     var m = A.st.meta;
     if (m.parque && m.parque !== j.parque) throw new Error('Este aparelho é da equipe ' + m.parque + ' e o arquivo é de ' + j.parque + '. Se mudou de equipe, troque em Ajustes.');
     var existentes = {}; A.st.imoveis.forEach(function (i) { existentes[i.id] = i; });
-    var arr = (j.imoveis || []).filter(function (i) { return i && i.id && i.parque === j.parque; }).map(function (i) { return Object.assign({}, existentes[i.id] || {}, i); });
+    var arr = (j.imoveis || []).filter(function (i) { return i && i.id && i.parque === j.parque; }).map(function (i) { return mesclaImovel(existentes[i.id], i); });
     var sit = Object.assign({}, A.st.situacao), feitos = 0;
     (j.situacao || []).forEach(function (x) { var a = sit[x.imovelId]; if (!a || String(x.atualizado) >= String(a.atualizado)) sit[x.imovelId] = x; });
     arr.forEach(function (i) { if (sit[i.id] && sit[i.id].status === 'concluida') feitos++; });

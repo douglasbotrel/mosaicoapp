@@ -1,4 +1,4 @@
-# Mosaico · coletor de campo (versão 1.3.0)
+# Mosaico · coletor de campo (versão 1.3.1)
 
 Aplicativo de celular, sem internet, para o cadastro e diagnóstico fundiário dos Parques Estaduais do Biribiri (PEBI) e da Serra Negra (PESN) (Carta Convite Funbio nº 208/2026). Mais uma **central** no computador para juntar os dados dos celulares, conferir a qualidade e exportar.
 

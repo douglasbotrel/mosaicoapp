@@ -106,11 +106,32 @@
     var im = cur.imovel;
     $body = h('div', { class: 'vbody' }); $steps = h('div', { class: 'steps', role: 'group', 'aria-label': 'Blocos do formulário' }); $nav = h('div', { class: 'nav2' });
     var top = h('header', { class: 'top' }, h('button', { 'aria-label': 'Voltar à lista', text: '‹', onclick: function () { F.pararTodos(); flush().then(function () { cur.urls.forEach(URL.revokeObjectURL); cur = null; $body = $steps = $nav = null; A.carregar().then(function () { A.st.aba = 'imoveis'; A.ir('lista'); }); }); } }),
-      h('h1', {}, im.nome, h('span', { class: 'sub', text: im.parque + (im.car ? ' · ' + im.car.slice(-9) : '') })));
+      h('h1', {}, im.nome, h('span', { class: 'sub', text: im.parque + (im.car ? ' · ' + im.car.slice(-9) : '') })),
+      h('button', { 'aria-label': 'Corrigir dados do imóvel', id: 'btn-edit-imovel', text: '✎', onclick: editarImovel }));
     var fab = h('button', { class: 'fab', id: 'fab', 'aria-label': 'Tirar foto', onclick: abrirCamera }, '📷', h('span', { class: 'n', id: 'fabn', text: String(cur.fotos.length) }));
     app.appendChild(h('div', { class: 'shell' }, top, h('main', {}, $steps, $body), $nav, fab));
     pintarBloco(); atualizarSteps();
   };
+  /* corrige em campo os dados cadastrais do imóvel (nome, CAR, matrícula…) */
+  var CAMPOS_IM = [['nome', 'Nome do imóvel', 'text'], ['car', 'Nº do CAR', 'text'], ['matricula', 'Matrícula', 'text'], ['sigef', 'Código SIGEF', 'text'], ['ccir', 'CCIR', 'text'], ['municipio', 'Município', 'text'], ['comunidade', 'Comunidade', 'text']];
+  function editarImovel() {
+    var im = cur.imovel, ins = {};
+    var corpo = [h('p', { class: 'dim', text: 'Corrija o que estiver errado na lista. A mudança vale só para este imóvel e vai no pacote para a central.' })];
+    CAMPOS_IM.forEach(function (c) { var i = h('input', { type: 'text', value: im[c[0]] || '', 'aria-label': c[1], autocapitalize: c[0] === 'car' ? 'characters' : null }); ins[c[0]] = i; corpo.push(h('div', { class: 'field' }, h('div', { class: 'lab', text: c[1] }), i)); });
+    var aviso = h('p', { class: 'aviso', role: 'status', text: '' }); corpo.push(aviso);
+    var sh = U.sheet('Corrigir dados do imóvel', corpo, [h('button', { class: 'btn', text: 'Cancelar', onclick: function () { sh.close(); } }), h('button', { class: 'btn primary', id: 'ok-edit-imovel', text: 'Salvar correção', onclick: function () {
+      var n = ins.nome.value.trim(); if (!n) { aviso.textContent = 'O nome não pode ficar vazio.'; return; }
+      var car = ins.car.value.trim().toUpperCase(); if (car && !C.carValido(car)) { if (!aviso.dataset.ok) { aviso.textContent = 'O CAR parece fora do padrão (MG-código IBGE-32 caracteres). Toque em Salvar de novo para confirmar assim mesmo.'; aviso.dataset.ok = '1'; return; } }
+      var mudou = false, novo = Object.assign({}, im);
+      CAMPOS_IM.forEach(function (c) { var v = c[0] === 'nome' ? n : c[0] === 'car' ? car : ins[c[0]].value.trim(); if ((im[c[0]] || '') !== v) { mudou = true; if (v) novo[c[0]] = v; else delete novo[c[0]]; } });
+      if (!mudou) { sh.close(); return; }
+      novo.corrigidoEm = new Date().toISOString(); novo.corrigidoPor = A.st.meta.aparelho;
+      DB.put('imoveis', novo).then(function () {
+        var k = A.st.imoveis.indexOf(im); if (k >= 0) A.st.imoveis[k] = novo; cur.imovel = novo;
+        cur.visita.atualizado = new Date().toISOString(); cur.dirty = true; return salvarAgora(true);
+      }).then(function () { sh.close(); U.toast('Dados do imóvel corrigidos', 3000); A.render(); });
+    } })]);
+  }
   function contFotos() { var n = document.getElementById('fabn'); if (n) n.textContent = String(cur.fotos.length); }
 
   /* ---------- fotos ---------- */

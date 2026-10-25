@@ -1,4 +1,4 @@
-# Auditoria e testes: Mosaico 1.3.0 (25/10/2026)
+# Auditoria e testes: Mosaico 1.3.1 (25/10/2026)
 
 Ambiente: Chromium (Playwright) com perfil de celular (Pixel 7) e GPS simulado; Node 22; conferência independente das saídas com Pillow (EXIF), pyshp (shapefile), openpyxl (Excel), pdftotext/pdfinfo (PDF), `zipfile` (ZIP).
 
@@ -65,6 +65,13 @@ Achados que dependem de decisão ou de dado externo (não é defeito do código)
 | Reabrir | Ao recarregar a central, o projeto e o registro de pacotes voltam sozinhos da pasta | Passou |
 | Segurança do projeto | Se a leitura do projeto salvo falhar, a central avisa e não grava por cima | Revisado no código |
 | Não verificado | Seleção de pasta real do Windows (diálogo do Chrome/Edge) e pedido de permissão na reabertura: o teste automático não aciona o diálogo nativo; confirme no primeiro uso | Pendente |
+
+## Acrescentado na 1.3.1 (correção em campo)
+| Área | Teste | Resultado |
+|---|---|---|
+| Dados do imóvel | Botão ✎ na visita corrige nome, CAR, matrícula, SIGEF, CCIR, município e comunidade, no meio da coleta, sem perder o que já foi preenchido; CAR fora do padrão pede confirmação | Passou |
+| Proteção | Reimportar a lista ou o arquivo da central não desfaz a correção feita em campo (`corrigidoEm`); na central, lista antiga também não desfaz | Passou |
+| Já existia | Salvamento automático; reabrir visita concluída (volta a "em andamento" e vira nova versão); refazer ponto GPS; desfazer último ponto e apagar limite; editar/excluir benfeitoria; editar legenda e categoria ou excluir foto | Revisado no código |
 
 ## Limites desta auditoria (não verificado)
 1. **Aparelhos reais.** Nenhum teste em celular físico, nem em iPhone/Safari. Câmera nativa, precisão do GPS sob mata, `capture` da câmera, Web Share e comportamento de memória variam por aparelho. **Faça um piloto de campo de meio dia antes da campanha.**

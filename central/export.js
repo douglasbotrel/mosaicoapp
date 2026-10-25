@@ -7,7 +7,7 @@
   E.novoEstado = function () { return { imoveis: {}, visitas: {}, fotos: {}, dias: {}, custos: {}, pacotes: [], conflitos: [], alertas: [] }; };
   /* incorpora um pacote já lido (PK.ler). Idempotente. */
   E.incorporar = function (est, pk, nome) {
-    pk.imoveis.forEach(function (i) { est.imoveis[i.id] = Object.assign(est.imoveis[i.id] || {}, i); });
+    pk.imoveis.forEach(function (i) { est.imoveis[i.id] = mescla(est.imoveis[i.id], i); });
     var m = PK.mesclarVisitas(Object.keys(est.visitas).map(function (k) { return est.visitas[k]; }), pk.visitas);
     est.visitas = {}; m.visitas.forEach(function (v) { est.visitas[v.imovelId] = v; });
     m.conflitos.forEach(function (c) { est.conflitos.push(c); });
@@ -19,7 +19,9 @@
     est.pacotes.push({ nome: nome || '', parque: pk.manifest.parque || '', equipe: pk.manifest.equipe || '', aparelho: pk.manifest.aparelho, operador: pk.manifest.operador, criadoEm: pk.manifest.criadoEm, parte: pk.manifest.parte, partes: pk.manifest.partes, visitas: pk.visitas.length, fotos: pk.fotos.length, fotosNovas: novas });
     return { visitas: pk.visitas.length, fotosNovas: novas, conflitos: m.conflitos.length };
   };
-  E.incorporarLista = function (est, imoveis) { imoveis.forEach(function (i) { est.imoveis[i.id] = Object.assign(est.imoveis[i.id] || {}, i); }); };
+  /* correção feita em campo (corrigidoEm) não é sobrescrita por lista mais antiga */
+  function mescla(ex, inc) { if (ex && ex.corrigidoEm && !(inc.corrigidoEm && inc.corrigidoEm >= ex.corrigidoEm)) return Object.assign({}, inc, ex); return Object.assign({}, ex || {}, inc); }
+  E.incorporarLista = function (est, imoveis) { imoveis.forEach(function (i) { est.imoveis[i.id] = mescla(est.imoveis[i.id], i); }); };
   /* Pacote de distribuição/continuação de um parque: lista de imóveis + situação já consolidada na central. */
   E.distribuicao = function (est, parque) {
     var ims = Object.keys(est.imoveis).map(function (k) { return est.imoveis[k]; }).filter(function (i) { return i.parque === parque; });
