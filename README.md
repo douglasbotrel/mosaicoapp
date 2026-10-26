@@ -47,7 +47,7 @@ Aba **Dia**: *Iniciar jornada* (veículo, pessoas, hodômetro inicial). O app re
 - **Limite do navegador:** com a tela apagada ou o app em segundo plano, o navegador pausa o GPS. O app avisa "lacunas" e o km por GPS fica menor que o real; por isso o hodômetro é o dado preferido para custo.
 
 ## Mapa (novo na 1.1)
-Aba **Mapa**: limites dos parques (do KMZ), imóveis coletados (verde = concluído, laranja = em andamento), acessos, benfeitorias, trajeto do dia, sua posição. A **imagem de satélite offline** é um pacote de tiles gerado na central (aba *Mapa offline*) só dentro dos parques. Veja `docs/MAPA_OFFLINE.md`: **a licença da imagem precisa ser confirmada antes de baixar**, e o pacote real ainda não foi gerado (o ambiente de desenvolvimento não alcança servidores de imagem).
+Aba **Mapa**: limites dos parques (do KMZ), imóveis coletados (verde = concluído, laranja = em andamento), acessos, benfeitorias, trajeto do dia, sua posição. A **imagem de satélite offline** é um pacote de tiles gerado na central (aba *Mapa offline*) só dentro dos parques. Veja `docs/MAPA_OFFLINE.md`: **a licença da imagem precisa ser confirmada antes de baixar**, e o pacote real ainda não foi gerado (o ambiente de desenvolvimento não alcança servidores de imagem). Desde a 1.4, a central também converte direto um **GeoTIFF** do recorte dos parques em pacote de mapa (ver seção "GeoTIFF direto" em `docs/MAPA_OFFLINE.md`).
 
 ## APK e iPhone
 - **Android (principal): não precisa de APK.** O Chrome instala o app pelo menu ⋮ → *Instalar app*: ícone na tela inicial, tela cheia, funciona offline. Não depende de loja nem de cabo.

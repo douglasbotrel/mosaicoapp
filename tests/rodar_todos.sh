@@ -14,6 +14,10 @@ node e2e_fluxo.js
 node e2e_pacote.js
 node e2e_dia.js
 node e2e_mapa.js
+python3 gen_tifs.py
+node e2e_geotiff.js
+node e2e_mapa_gt.js
+python3 verifica_gt.py
 node gen_pacotes.js 12 tmp
 node e2e_central.js
 node e2e_central2.js

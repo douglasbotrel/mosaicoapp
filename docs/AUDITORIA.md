@@ -73,6 +73,11 @@ Achados que dependem de decisão ou de dado externo (não é defeito do código)
 | Proteção | Reimportar a lista ou o arquivo da central não desfaz a correção feita em campo (`corrigidoEm`); na central, lista antiga também não desfaz | Passou |
 | Já existia | Salvamento automático; reabrir visita concluída (volta a "em andamento" e vira nova versão); refazer ponto GPS; desfazer último ponto e apagar limite; editar/excluir benfeitoria; editar legenda e categoria ou excluir foto | Revisado no código |
 
+## Acrescentado na 1.4 (importar GeoTIFF na central)
+- Novo `central/geotiff_tiles.js` + leitor `geotiff.js` 2.1.3 (MIT) em `central/vendor/`. Converte GeoTIFF em pacote de mapa; reprojeção própria (UTM/Krüger, Web Mercator, geográfico) com grade de controle 17×17 e interpolação bilinear.
+- Testado com GeoTIFFs sintéticos: UTM 23S 8 bits (13 pontos conferidos contra pyproj, erro < 8 níveis de cor) e SIRGAS geográfico 16 bits (orientação e cobertura); pacote importado no app e desenhado offline. Arquivo inválido gera erro legível.
+- Não testado: imagem real de satélite, arquivos de vários GB, COG remoto, projeções fora da lista (recusadas com mensagem).
+
 ## Limites desta auditoria (não verificado)
 1. **Aparelhos reais.** Nenhum teste em celular físico, nem em iPhone/Safari. Câmera nativa, precisão do GPS sob mata, `capture` da câmera, Web Share e comportamento de memória variam por aparelho. **Faça um piloto de campo de meio dia antes da campanha.**
 2. **Armazenamento no iPhone.** O Safari pode limpar dados de sites pouco usados; a mitigação (instalar na tela inicial, gerar pacote diário) está no README, mas a política atual do iOS deve ser conferida em fonte oficial da Apple.

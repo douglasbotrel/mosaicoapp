@@ -54,5 +54,41 @@
       h('label', { class: 'ck' }, ck, ' Confirmo que o provedor desta imagem permite baixar e guardar cópia offline para este uso, e que a atribuição acima será mantida.'),
       h('p', {}, btn, ' ', btnC), prog));
     sel.value = 'custom'; atual();
+
+    /* ---- Importar imagem GeoTIFF (recorte feito fora do app) ---- */
+    (function () {
+      var G = window.MOSAICO_GEOTIFF; if (!G) return;
+      var f = h('input', { type: 'file', id: 'gt-file', accept: '.tif,.tiff,image/tiff' }), info = h('div', { id: 'gt-info', class: 'msg' }), pg = h('div', { id: 'gt-prog', class: 'dim' });
+      var zmn = h('input', { type: 'number', id: 'gt-zmin', value: 12, min: 8, max: 19, style: 'width:5em' }), zmx = h('input', { type: 'number', id: 'gt-zmax', value: 17, min: 8, max: 20, style: 'width:5em' });
+      var fonte = h('input', { type: 'text', id: 'gt-fonte', placeholder: 'Ex.: CBERS-4A WPM fusionada (INPE), 2 m', style: 'width:100%' }), atr = h('input', { type: 'text', id: 'gt-atrib', placeholder: 'Atribuição exigida pela licença (ex.: INPE/CBERS, CC BY 4.0)', style: 'width:100%' });
+      var ok = h('input', { type: 'checkbox', id: 'gt-ok' }), est = h('input', { type: 'checkbox', id: 'gt-estirar' });
+      var pb = h('input', { type: 'checkbox', id: 'gt-pebi', checked: true }), ps = h('input', { type: 'checkbox', id: 'gt-pesn', checked: true });
+      var go = h('button', { class: 'b p', id: 'gt-go', text: 'Converter em pacote de mapa', disabled: true }), cn = h('button', { class: 'b', text: 'Cancelar', hidden: true }), o = null, cancel = false;
+      function qs() { return [pb.checked ? 'PEBI' : null, ps.checked ? 'PESN' : null].filter(Boolean); }
+      function conta() { if (!o) return; var n = estima(qs(), +zmn.value, +zmx.value, 300).length; info.textContent = o.w + '×' + o.h + ' px · ' + o.ns + ' bandas · ' + o.bits + ' bits · ' + o.P.nome + ' · ' + o.gsd.toFixed(2) + ' m/pixel (zoom nativo ≈ ' + o.zNativo.toFixed(1) + ') · ' + n.toLocaleString('pt-BR') + ' tiles, ~' + (n * 0.025).toFixed(0) + ' MB' + (+zmx.value > Math.ceil(o.zNativo) + 1 ? ' · ATENÇÃO: zoom máximo acima da resolução da imagem só amplia, sem ganhar detalhe' : ''); }
+      [zmn, zmx, pb, ps].forEach(function (e) { e.addEventListener('input', conta); e.addEventListener('change', conta); });
+      f.addEventListener('change', function () {
+        o = null; go.disabled = true; if (!f.files[0]) return; info.textContent = 'Lendo cabeçalho…';
+        G.abrir(f.files[0]).then(function (r) { o = r; zmx.value = Math.min(19, Math.max(12, Math.round(r.zNativo))); zmn.value = Math.max(8, +zmx.value - 5); if (r.bits !== 8) est.checked = true; go.disabled = false; conta(); }).catch(function (e) { info.textContent = 'Erro: ' + e.message; });
+      });
+      cn.onclick = function () { cancel = true; };
+      go.onclick = function () {
+        if (!o) return; if (!ok.checked) { pg.textContent = 'Marque a confirmação de licença antes de converter'; return; }
+        var polys = []; qs().forEach(function (c) { polys = polys.concat(ring(c)); }); if (!polys.length) { pg.textContent = 'Selecione ao menos um parque'; return; }
+        cancel = false; go.disabled = true; cn.hidden = false; pg.textContent = 'Convertendo… (mantenha esta aba aberta)';
+        G.converter(o, { polys: polys, zmin: +zmn.value, zmax: +zmx.value, buf: 300, estirar: est.checked, parques: qs(), fonte: fonte.value.trim() || 'GeoTIFF próprio', atrib: atr.value.trim() }, function (i, n, t) { pg.textContent = i + ' / ' + n + ' tiles (' + t + ')'; }, function () { return cancel; }).then(function (r) {
+          go.disabled = false; cn.hidden = true; if (!r) { pg.textContent = 'Cancelado.'; return; }
+          if (!r.n) { pg.textContent = 'Nenhum tile caiu dentro da imagem. Confira se o recorte cobre o parque e se o sistema de coordenadas está correto.'; return; }
+          baixar('mapa_offline_' + qs().join('-') + '_z' + zmn.value + '-' + zmx.value + '.zip', r.zip, 'application/zip');
+          pg.textContent = 'Pacote gerado: ' + r.n + ' tiles · ' + r.vazios + ' fora da imagem · ' + r.parciais + ' parciais (borda). Importe nos celulares: aba Mapa → Importar mapa.';
+        }).catch(function (e) { go.disabled = false; cn.hidden = true; pg.textContent = 'Erro: ' + e.message; });
+      };
+      box.appendChild(h('div', { class: 'card' }, h('b', { text: 'Importar imagem GeoTIFF dos parques' }),
+        h('p', { class: 'dim', text: 'Use o recorte de satélite que você gerou fora do app (GeoTIFF RGB, de preferência 8 bits, em SIRGAS 2000 geográfico EPSG:4674 ou UTM 23S EPSG:31983). A central converte para o pacote de mapa dos celulares; a imagem não sai deste computador. O celular não lê o .tif diretamente.' }),
+        h('p', {}, f), h('div', { class: 'k' }, h('label', {}, pb, ' PE do Biribiri'), h('label', {}, ps, ' PE da Serra Negra'), h('label', {}, 'Zoom de ', zmn, ' a ', zmx)),
+        h('p', {}, h('label', {}, est, ' Esticar contraste (imagens de 16 bits ou sem ajuste de brilho)')), h('p', {}, fonte), h('p', {}, atr), info,
+        h('label', { class: 'ck' }, ok, ' Confirmo que a licença desta imagem permite uso e distribuição aos celulares da equipe, e que a atribuição acima será mantida.'),
+        h('p', {}, go, ' ', cn), pg));
+    })();
   };
 })();
