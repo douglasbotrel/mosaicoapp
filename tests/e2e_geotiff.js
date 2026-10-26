@@ -15,8 +15,10 @@ const OUT=path.join(__dirname,'tmp');
   // sem licença: deve recusar
   await pg.uncheck('#gt-ok');await pg.click('#gt-go');assert(/licença/.test(await pg.locator('#gt-prog').innerText()));
   await pg.check('#gt-ok');await pg.fill('#gt-fonte','TESTE sintético');await pg.fill('#gt-atrib','teste');
-  const [d]=await Promise.all([pg.waitForEvent('download',{timeout:120000}),pg.click('#gt-go')]);await d.saveAs(OUT+'/'+saida);
-  console.log(saida,fs.statSync(OUT+'/'+saida).size,await pg.locator('#gt-prog').innerText());
+  await pg.fill('#gt-parte',pq==='pebi'?'0.12':'150');const dls=[];const h=d=>dls.push(d);pg.on('download',h);
+  await pg.click('#gt-go');await pg.waitForFunction(()=>/Pronto|Erro/.test(document.querySelector('#gt-prog').innerText),{timeout:120000});await pg.waitForTimeout(800);pg.off('download',h);
+  let i=0;for(const d of dls){i++;await d.saveAs(OUT+'/'+saida.replace('.zip','_p'+i+'.zip'))}
+  console.log(saida,'partes:',dls.length,await pg.locator('#gt-prog').innerText());assert(pq==='pesn'?dls.length===1:dls.length>=2);
  }
  // arquivo inválido
  fs.writeFileSync(OUT+'/lixo.tif','nao sou tiff');await pg.setInputFiles('#gt-file',OUT+'/lixo.tif');

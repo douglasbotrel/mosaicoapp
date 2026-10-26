@@ -61,7 +61,7 @@
       var f = h('input', { type: 'file', id: 'gt-file', accept: '.tif,.tiff,image/tiff' }), info = h('div', { id: 'gt-info', class: 'msg' }), pg = h('div', { id: 'gt-prog', class: 'dim' });
       var zmn = h('input', { type: 'number', id: 'gt-zmin', value: 12, min: 8, max: 19, style: 'width:5em' }), zmx = h('input', { type: 'number', id: 'gt-zmax', value: 17, min: 8, max: 20, style: 'width:5em' });
       var fonte = h('input', { type: 'text', id: 'gt-fonte', placeholder: 'Ex.: CBERS-4A WPM fusionada (INPE), 2 m', style: 'width:100%' }), atr = h('input', { type: 'text', id: 'gt-atrib', placeholder: 'Atribuição exigida pela licença (ex.: INPE/CBERS, CC BY 4.0)', style: 'width:100%' });
-      var ok = h('input', { type: 'checkbox', id: 'gt-ok' }), est = h('input', { type: 'checkbox', id: 'gt-estirar' });
+      var parte = h('input', { type: 'number', id: 'gt-parte', value: 150, min: 0.05, step: 'any', style: 'width:5em' }), ok = h('input', { type: 'checkbox', id: 'gt-ok' }), est = h('input', { type: 'checkbox', id: 'gt-estirar' });
       var pb = h('input', { type: 'checkbox', id: 'gt-pebi', checked: true }), ps = h('input', { type: 'checkbox', id: 'gt-pesn', checked: true });
       var go = h('button', { class: 'b p', id: 'gt-go', text: 'Converter em pacote de mapa', disabled: true }), cn = h('button', { class: 'b', text: 'Cancelar', hidden: true }), o = null, cancel = false;
       function qs() { return [pb.checked ? 'PEBI' : null, ps.checked ? 'PESN' : null].filter(Boolean); }
@@ -76,17 +76,16 @@
         if (!o) return; if (!ok.checked) { pg.textContent = 'Marque a confirmação de licença antes de converter'; return; }
         var polys = []; qs().forEach(function (c) { polys = polys.concat(ring(c)); }); if (!polys.length) { pg.textContent = 'Selecione ao menos um parque'; return; }
         cancel = false; go.disabled = true; cn.hidden = false; pg.textContent = 'Convertendo… (mantenha esta aba aberta)';
-        G.converter(o, { polys: polys, zmin: +zmn.value, zmax: +zmx.value, buf: 300, estirar: est.checked, parques: qs(), fonte: fonte.value.trim() || 'GeoTIFF próprio', atrib: atr.value.trim() }, function (i, n, t) { pg.textContent = i + ' / ' + n + ' tiles (' + t + ')'; }, function () { return cancel; }).then(function (r) {
+        G.converter(o, { polys: polys, zmin: +zmn.value, zmax: +zmx.value, buf: 300, estirar: est.checked, parteMB: +parte.value || 150, aoParte: function (z, i, n) { var nome = 'mapa_offline_' + qs().join('-') + '_z' + zmn.value + '-' + zmx.value + '_parte' + ('0' + i).slice(-2) + '.zip'; pg.textContent = 'Parte ' + i + ' pronta (' + n + ' tiles)…'; return baixar(nome, z, 'application/zip'); }, parques: qs(), fonte: fonte.value.trim() || 'GeoTIFF próprio', atrib: atr.value.trim() }, function (i, n, t) { pg.textContent = i + ' / ' + n + ' tiles (' + t + ')'; }, function () { return cancel; }).then(function (r) {
           go.disabled = false; cn.hidden = true; if (!r) { pg.textContent = 'Cancelado.'; return; }
           if (!r.n) { pg.textContent = 'Nenhum tile caiu dentro da imagem. Confira se o recorte cobre o parque e se o sistema de coordenadas está correto.'; return; }
-          baixar('mapa_offline_' + qs().join('-') + '_z' + zmn.value + '-' + zmx.value + '.zip', r.zip, 'application/zip');
-          pg.textContent = 'Pacote gerado: ' + r.n + ' tiles · ' + r.vazios + ' fora da imagem · ' + r.parciais + ' parciais (borda). Importe nos celulares: aba Mapa → Importar mapa.';
+          pg.textContent = 'Pronto: ' + r.partes + ' arquivo(s) .zip, ' + r.n + ' tiles · ' + r.vazios + ' fora da imagem · ' + r.parciais + ' parciais (borda). No celular: Mapa → Importar mapa e selecione todas as partes de uma vez.';
         }).catch(function (e) { go.disabled = false; cn.hidden = true; pg.textContent = 'Erro: ' + e.message; });
       };
       box.appendChild(h('div', { class: 'card' }, h('b', { text: 'Importar imagem GeoTIFF dos parques' }),
         h('p', { class: 'dim', text: 'Use o recorte de satélite que você gerou fora do app (GeoTIFF RGB, de preferência 8 bits, em SIRGAS 2000 geográfico EPSG:4674 ou UTM 23S EPSG:31983). A central converte para o pacote de mapa dos celulares; a imagem não sai deste computador. O celular não lê o .tif diretamente.' }),
         h('p', {}, f), h('div', { class: 'k' }, h('label', {}, pb, ' PE do Biribiri'), h('label', {}, ps, ' PE da Serra Negra'), h('label', {}, 'Zoom de ', zmn, ' a ', zmx)),
-        h('p', {}, h('label', {}, est, ' Esticar contraste (imagens de 16 bits ou sem ajuste de brilho)')), h('p', {}, fonte), h('p', {}, atr), info,
+        h('p', {}, h('label', {}, est, ' Esticar contraste (imagens de 16 bits ou sem ajuste de brilho)')), h('p', {}, fonte), h('p', {}, atr), h('p', {}, h('label', {}, 'Tamanho máximo de cada parte (MB) ', parte)), info,
         h('label', { class: 'ck' }, ok, ' Confirmo que a licença desta imagem permite uso e distribuição aos celulares da equipe, e que a atribuição acima será mantida.'),
         h('p', {}, go, ' ', cn), pg));
     })();

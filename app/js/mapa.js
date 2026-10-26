@@ -19,7 +19,13 @@
         i += arr.length; if (onProg) onProg(i, tiles.length);
         return DB.putMany('tiles', arr).then(lote);
       }
-      return lote().then(function () { meta.nTiles = tiles.length; meta.importadoEm = new Date().toISOString(); return DB.setMeta('mapa', meta).then(function () { M.pack = meta; return meta; }); });
+      return lote().then(function () {
+        return DB.getMeta('mapa', null).then(function (ant) {
+          meta.importadoEm = new Date().toISOString();
+          if (ant) { meta.zmin = Math.min(meta.zmin, ant.zmin); meta.zmax = Math.max(meta.zmax, ant.zmax); meta.parques = (ant.parques || []).concat((meta.parques || []).filter(function (p) { return (ant.parques || []).indexOf(p) < 0; })); }
+          return DB.count('tiles').then(function (n) { meta.nTiles = n; return DB.setMeta('mapa', meta).then(function () { M.pack = meta; return meta; }); });
+        });
+      });
     });
   };
   M.limpar = function () { return DB.clear('tiles').then(function () { return DB.setMeta('mapa', null); }).then(function () { M.pack = null; }); };
@@ -67,10 +73,16 @@
   };
   function irParque(cod) { if (!camadas.parques) return; camadas.parques.eachLayer(function (l) { if (l.feature.properties.codigo === cod) map.fitBounds(l.getBounds()); }); }
   function importarUI() {
-    var inp = h('input', { type: 'file', accept: '.zip,application/zip' });
+    var inp = h('input', { type: 'file', accept: '.zip,application/zip', multiple: true });
     inp.addEventListener('change', function () {
-      var f = inp.files[0]; if (!f) return; var pg = h('p', { text: 'Lendo arquivo…' }), sh = U.sheet('Importando mapa', pg, null);
-      M.importar(f, function (i, n) { pg.textContent = i + ' de ' + n + ' tiles'; }).then(function (m) { sh.close(); U.toast('Mapa importado: ' + m.nTiles + ' tiles', 4000); A.render(); }).catch(function (e) { sh.close(); U.toast('Erro: ' + e.message, 6000); });
+      var fs = Array.prototype.slice.call(inp.files || []).sort(function (a, b) { return a.name < b.name ? -1 : 1; }); if (!fs.length) return;
+      var pg = h('p', { text: 'Lendo arquivo…' }), sh = U.sheet('Importando mapa', pg, null), k = 0, ultimo = null;
+      function um() {
+        if (k >= fs.length) { sh.close(); U.toast('Mapa importado: ' + ultimo.nTiles + ' tiles no aparelho', 4000); return A.render(); }
+        var f = fs[k++]; pg.textContent = 'Arquivo ' + k + ' de ' + fs.length + '…';
+        return M.importar(f, function (i, n) { pg.textContent = 'Arquivo ' + k + ' de ' + fs.length + ': ' + i + ' de ' + n + ' tiles'; }).then(function (m) { ultimo = m; return um(); });
+      }
+      um().catch(function (e) { sh.close(); var m = String(e && e.message || e); U.toast('Erro em ' + (fs[k - 1] ? fs[k - 1].name : 'arquivo') + ': ' + (/could not be read|NotReadable/i.test(m) ? 'o aparelho não conseguiu ler o arquivo (grande demais ou em nuvem). Use partes menores e copie para o aparelho antes.' : m), 8000); });
     });
     inp.click();
   }

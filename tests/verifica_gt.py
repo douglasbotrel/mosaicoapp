@@ -12,7 +12,14 @@ def pix(zf,z,lon,lat):
     if im is None: return None
     return im.getpixel((int((x-b.left)/(b.right-b.left)*256),int((b.top-y)/(b.top-b.bottom)*256)))
 # PEBI utm
-zf=zipfile.ZipFile('tmp/gt_pebi.zip');m=json.loads(zf.read('mapa.json'));print(m['origem'],m['nTiles'])
+import glob
+class Multi:
+    def __init__(s,pat): s.z=[zipfile.ZipFile(f) for f in sorted(glob.glob(pat))]; print(len(s.z),'partes')
+    def namelist(s): return [n for z in s.z for n in z.namelist()]
+    def read(s,n):
+        for z in s.z:
+            if n in z.namelist(): return z.read(n)
+zf=Multi('tmp/gt_pebi_p*.zip');m=json.loads(zf.z[0].read('mapa.json'));print(m['origem'],m['nTiles'],m.get('parte'))
 J=json.load(open('tmp/pebi_utm.json'));tr=Transformer.from_crs(4674,31983,always_xy=True)
 G=json.load(open('../tools/parques_full.geojson'));ring=[f for f in G['features'] if f['properties']['codigo']=='PEBI'][0]['geometry']['coordinates'][0]
 ok=0
@@ -24,7 +31,7 @@ for lon,lat in ring[::max(1,len(ring)//12)]:
     ok+=1
 print('PEBI UTM pixels ok',ok)
 # PESN 16 bits, estica contraste -> R,G ~ lineares 0..255 por percentis; checa monotonia e cobertura
-zf=zipfile.ZipFile('tmp/gt_pesn.zip');print(json.loads(zf.read('mapa.json'))['origem'])
+zf=Multi('tmp/gt_pesn_p*.zip');print(json.loads(zf.z[0].read('mapa.json'))['origem'])
 J=json.load(open('tmp/pesn_geo16.json'))
 ring=[f for f in G['features'] if f['properties']['codigo']=='PESN'][0]['geometry']['coordinates'][0]
 pts=[(lon,lat,pix(zf,14,lon,lat)) for lon,lat in ring[::max(1,len(ring)//12)]]

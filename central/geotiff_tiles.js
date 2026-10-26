@@ -116,7 +116,7 @@
   G.converter = function (o, opt, prog, cancelado) {
     var lista = T.lista(opt.polys, opt.zmin, opt.zmax, opt.buf), canvas = root.document.createElement('canvas'), ctx = canvas.getContext('2d');
     canvas.width = canvas.height = 256;
-    var files = [], vazios = 0, parciais = 0, feitos = 0, LIM = 40e6, q = opt.qualidade || 0.88;
+    var files = [], bytes = 0, partes = 0, nTot = 0, vazios = 0, parciais = 0, feitos = 0, LIM = 40e6, q = opt.qualidade || 0.88, maxB = (opt.parteMB || 150) * 1048576;
     lista.sort(function (a, b) { return a.z - b.z || a.y - b.y || a.x - b.x; });
     /* grupos: mesma linha de tiles, janela de leitura limitada */
     var grupos = [], atual = null;
@@ -131,6 +131,14 @@
       atual = { z: t.z, y: t.y, w: w, t: [{ t: t, c: c }] }; grupos.push(atual);
     });
     var total = lista.length;
+    function metaDe() { return { formato: 1, fonte: opt.fonte || 'GeoTIFF próprio', atribuicao: opt.atrib || '', licencaConfirmada: true, zmin: opt.zmin, zmax: opt.zmax, parques: opt.parques, bufferM: opt.buf,
+      origem: 'GeoTIFF ' + o.P.nome + ', ' + o.gsd.toFixed(2) + ' m/pixel', datum: 'Web Mercator (tiles XYZ); imagem de origem ' + o.P.nome + ' (SIRGAS 2000 e WGS 84 tratados como iguais)', geradoEm: new Date().toISOString() }; }
+    function fecha() {
+      if (!files.length) return Promise.resolve();
+      var m = metaDe(); partes++; m.parte = partes; m.nTiles = files.length; nTot += files.length;
+      var z = C.makeZip([{ name: 'mapa.json', data: JSON.stringify(m, null, 1) }].concat(files)); files = []; bytes = 0;
+      return Promise.resolve(opt.aoParte(z, partes, m.nTiles));
+    }
     return G.limites(o, opt.estirar).then(function (lim) {
       return grupos.reduce(function (p, gr) { return p.then(function () {
         if (cancelado && cancelado()) return;
@@ -145,15 +153,14 @@
             var cheio = d.validos === 65536; if (!cheio) parciais++;
             ctx.putImageData(new root.ImageData(d.px, 256, 256), 0, 0);
             return blobDe(canvas, cheio ? 'image/jpeg' : 'image/png', q).then(function (b) { return b.arrayBuffer(); }).then(function (ab) {
-              files.push({ name: it.t.z + '/' + it.t.x + '/' + it.t.y + (cheio ? '.jpg' : '.png'), data: new Uint8Array(ab) }); return pausa();
+              files.push({ name: it.t.z + '/' + it.t.x + '/' + it.t.y + (cheio ? '.jpg' : '.png'), data: new Uint8Array(ab) }); bytes += ab.byteLength;
+              return bytes >= maxB ? fecha().then(pausa) : pausa();
             });
           }); }, Promise.resolve());
         });
       }); }, Promise.resolve()).then(function () {
         if (cancelado && cancelado()) return null;
-        var meta = { formato: 1, fonte: opt.fonte || 'GeoTIFF próprio', atribuicao: opt.atrib || '', licencaConfirmada: true, zmin: opt.zmin, zmax: opt.zmax, parques: opt.parques, bufferM: opt.buf,
-          origem: 'GeoTIFF ' + o.P.nome + ', ' + o.gsd.toFixed(2) + ' m/pixel', datum: 'Web Mercator (tiles XYZ); imagem de origem ' + o.P.nome + ' (SIRGAS 2000 e WGS 84 tratados como iguais)', geradoEm: new Date().toISOString(), nTiles: files.length };
-        return { zip: C.makeZip([{ name: 'mapa.json', data: JSON.stringify(meta, null, 1) }].concat(files)), n: files.length, vazios: vazios, parciais: parciais, total: total, meta: meta };
+        return fecha().then(function () { return { n: nTot, partes: partes, vazios: vazios, parciais: parciais, total: total }; });
       });
     });
   };

@@ -78,6 +78,9 @@ Achados que dependem de decisão ou de dado externo (não é defeito do código)
 - Testado com GeoTIFFs sintéticos: UTM 23S 8 bits (13 pontos conferidos contra pyproj, erro < 8 níveis de cor) e SIRGAS geográfico 16 bits (orientação e cobertura); pacote importado no app e desenhado offline. Arquivo inválido gera erro legível.
 - Não testado: imagem real de satélite, arquivos de vários GB, COG remoto, projeções fora da lista (recusadas com mensagem).
 
+## Acrescentado na 1.3.2 (mapa em partes)
+- Erro real relatado: `.zip` de mapa de 2 GB não lido pelo navegador. Central divide em partes (padrão 150 MB), liberando memória a cada parte; app importa vários arquivos em sequência e soma os tiles (zmin/zmax e parques unidos). Testado com 4 partes sintéticas (262 tiles somados). Não testado: partes em iPhone real com centenas de MB.
+
 ## Limites desta auditoria (não verificado)
 1. **Aparelhos reais.** Nenhum teste em celular físico, nem em iPhone/Safari. Câmera nativa, precisão do GPS sob mata, `capture` da câmera, Web Share e comportamento de memória variam por aparelho. **Faça um piloto de campo de meio dia antes da campanha.**
 2. **Armazenamento no iPhone.** O Safari pode limpar dados de sites pouco usados; a mitigação (instalar na tela inicial, gerar pacote diário) está no README, mas a política atual do iOS deve ser conferida em fonte oficial da Apple.

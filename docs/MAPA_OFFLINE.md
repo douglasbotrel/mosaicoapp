@@ -43,3 +43,6 @@ O celular **não lê .tif**; ele lê o pacote de tiles. A central faz a convers�
 **Tamanho esperado**: ~25 KB/tile; zoom 17 acumulado ≈ 6.300 tiles ≈ 160 MB para os dois parques com 300 m de margem; zoom 18 ≈ 23.600 tiles ≈ 600 MB. Considere o espaço dos celulares.
 
 **Licença**: a conversão não altera a licença da imagem. CBERS no registro da AWS aparece como CC BY-SA 3.0 e, no registro do INPE para o produto WPM fusionado, CC BY 4.0; confirme qual vale para o produto usado. Dados do Google Earth Engine só em projeto não comercial verificado; trabalho de consultoria pode ser comercial: confirmar com Funbio/IEF. Mantenha a atribuição.
+
+## Mapa grande: partes de ~150 MB (versão 1.3.2 do app / central 1.4)
+Um único `.zip` de ~2 GB não é lido pelo navegador (erro "The requested file could not be read…"). A central agora divide o mapa em partes `..._parte01.zip`, `..._parte02.zip`… (tamanho configurável, padrão 150 MB). No celular, **Mapa → Importar mapa** aceita **várias partes de uma vez** (selecione todas) e importa uma por vez; o total de tiles é recalculado. Copie as partes para o aparelho (não direto de nuvem "somente online") antes de importar. A importação por download de URL (card de provedor) ainda gera um único arquivo.
