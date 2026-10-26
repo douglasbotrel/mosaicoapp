@@ -7,26 +7,70 @@
   M.pack = null;
   M.carregarInfo = function () { return DB.getMeta('mapa', null).then(function (m) { M.pack = m; return m; }); };
 
-  /* importa pacote de mapa: zip com mapa.json + z/x/y.(jpg|png) */
-  M.importar = function (file, onProg) {
-    return file.arrayBuffer().then(function (buf) { return C.readZip(buf); }).then(function (fs) {
-      var mj = fs.filter(function (f) { return f.name === 'mapa.json'; })[0]; if (!mj) throw new Error('Pacote de mapa sem mapa.json');
-      var meta = JSON.parse(new TextDecoder().decode(mj.data)), tiles = fs.filter(function (f) { return /^\d+\/\d+\/\d+\.(jpg|jpeg|png|webp)$/i.test(f.name); }), i = 0;
-      var tipo = function (n) { return /png$/i.test(n) ? 'image/png' : /webp$/i.test(n) ? 'image/webp' : 'image/jpeg'; };
-      function lote() {
-        if (i >= tiles.length) return Promise.resolve();
-        var arr = tiles.slice(i, i + 400).map(function (f) { var p = f.name.replace(/\.\w+$/, ''); return { k: p, blob: new Blob([f.data], { type: tipo(f.name) }) }; });
-        i += arr.length; if (onProg) onProg(i, tiles.length);
-        return DB.putMany('tiles', arr).then(lote);
+  /* ---- leitura de ZIP em fatias (File.slice): não carrega o arquivo inteiro; aceita ZIP64, pasta interna e DEFLATE ---- */
+  function u64(dv, o) { return Number(dv.getBigUint64(o, true)); }
+  function inflar(raw) { return new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer().then(function (b) { return new Uint8Array(b); }); }
+  async function diretorio(file) {
+    var size = file.size, tail = await file.slice(Math.max(0, size - 65557), size).arrayBuffer(), dv = new DataView(tail), i = tail.byteLength - 22;
+    while (i >= 0 && dv.getUint32(i, true) !== 0x06054b50) i--;
+    if (i < 0) throw new Error('Arquivo ZIP inválido ou incompleto');
+    var n = dv.getUint16(i + 10, true), cdSize = dv.getUint32(i + 12, true), cdOff = dv.getUint32(i + 16, true);
+    if (n === 0xFFFF || cdSize === 0xFFFFFFFF || cdOff === 0xFFFFFFFF) {
+      if (i < 20 || dv.getUint32(i - 20, true) !== 0x07064b50) throw new Error('ZIP64 não reconhecido');
+      var o64 = u64(dv, i - 12), r = new DataView(await file.slice(o64, o64 + 56).arrayBuffer());
+      if (r.getUint32(0, true) !== 0x06064b50) throw new Error('ZIP64 corrompido');
+      n = u64(r, 32); cdSize = u64(r, 40); cdOff = u64(r, 48);
+    }
+    var cd = new DataView(await file.slice(cdOff, cdOff + cdSize).arrayBuffer()), u8 = new Uint8Array(cd.buffer), p = 0, ents = [];
+    for (var k = 0; k < n; k++) {
+      if (p + 46 > cd.byteLength || cd.getUint32(p, true) !== 0x02014b50) throw new Error('ZIP corrompido (diretório)');
+      var meth = cd.getUint16(p + 10, true), cs = cd.getUint32(p + 20, true), us = cd.getUint32(p + 24, true), nl = cd.getUint16(p + 28, true), xl = cd.getUint16(p + 30, true), cl = cd.getUint16(p + 32, true), lo = cd.getUint32(p + 42, true);
+      var name = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nl));
+      if (us === 0xFFFFFFFF || cs === 0xFFFFFFFF || lo === 0xFFFFFFFF) {
+        var q = p + 46 + nl, fim = q + xl;
+        while (q + 4 <= fim) { var id = cd.getUint16(q, true), sz = cd.getUint16(q + 2, true), w = q + 4; if (id === 1) { if (us === 0xFFFFFFFF) { us = u64(cd, w); w += 8; } if (cs === 0xFFFFFFFF) { cs = u64(cd, w); w += 8; } if (lo === 0xFFFFFFFF) { lo = u64(cd, w); } } q += 4 + sz; }
       }
-      return lote().then(function () {
-        return DB.getMeta('mapa', null).then(function (ant) {
-          meta.importadoEm = new Date().toISOString();
-          if (ant) { meta.zmin = Math.min(meta.zmin, ant.zmin); meta.zmax = Math.max(meta.zmax, ant.zmax); meta.parques = (ant.parques || []).concat((meta.parques || []).filter(function (p) { return (ant.parques || []).indexOf(p) < 0; })); }
-          return DB.count('tiles').then(function (n) { meta.nTiles = n; return DB.setMeta('mapa', meta).then(function () { M.pack = meta; return meta; }); });
-        });
+      if (name.slice(-1) !== '/') ents.push({ name: name, meth: meth, cs: cs, lo: lo, nl: nl });
+      p += 46 + nl + xl + cl;
+    }
+    return ents;
+  }
+  /* lê as entradas (já ordenadas por offset) em lotes de ~24 MB e entrega cada uma ao callback */
+  async function lerLotes(file, ents, aoLote) {
+    ents = ents.slice().sort(function (a, b) { return a.lo - b.lo; });
+    var i = 0, LIM = 24 * 1048576;
+    while (i < ents.length) {
+      var j = i, tot = 0; while (j < ents.length && (j === i || tot + ents[j].cs + 300 < LIM)) { tot += ents[j].cs + 300; j++; }
+      var ini = ents[i].lo, fim = Math.min(file.size, ents[j - 1].lo + 30 + ents[j - 1].nl + 65536 + ents[j - 1].cs);
+      var buf = new Uint8Array(await file.slice(ini, fim).arrayBuffer()), dv = new DataView(buf.buffer), out = [];
+      for (var k = i; k < j; k++) {
+        var e = ents[k], r = e.lo - ini; if (dv.getUint32(r, true) !== 0x04034b50) throw new Error('ZIP corrompido (entrada ' + e.name + ')');
+        var ds = r + 30 + dv.getUint16(r + 26, true) + dv.getUint16(r + 28, true), raw = buf.subarray(ds, ds + e.cs);
+        if (e.meth === 0) out.push({ name: e.name, data: raw }); else if (e.meth === 8 && typeof DecompressionStream !== 'undefined') out.push({ name: e.name, data: await inflar(raw) }); else throw new Error('Compressão não suportada em ' + e.name);
+      }
+      await aoLote(out, j); i = j;
+    }
+  }
+  var RX = /(?:^|\/)(\d+)\/(\d+)\/(\d+)\.(jpg|jpeg|png|webp)$/i;
+  /* importa pacote de mapa: zip com (opcional) mapa.json + z/x/y.(jpg|png|webp); lê por fatias, aceita pasta interna e ZIP64 */
+  M.importar = function (file, onProg) {
+    return (async function () {
+      var ents = await diretorio(file), tiles = [], mj = null, tipo = function (n) { return /png$/i.test(n) ? 'image/png' : /webp$/i.test(n) ? 'image/webp' : 'image/jpeg'; };
+      ents.forEach(function (e) { if (/(^|\/)mapa\.json$/.test(e.name)) mj = e; else { var m = RX.exec(e.name); if (m) { e.key = m[1] + '/' + m[2] + '/' + m[3]; e.z = +m[1]; tiles.push(e); } } });
+      if (!tiles.length) throw new Error('Nenhum tile z/x/y encontrado no arquivo');
+      var meta;
+      if (mj) { var got = []; await lerLotes(file, [mj], async function (o) { got = o; }); meta = JSON.parse(new TextDecoder().decode(got[0].data)); }
+      else { var zs = tiles.map(function (t) { return t.z; }); meta = { formato: 1, fonte: file.name.replace(/\.zip$/i, ''), atribuicao: '', zmin: Math.min.apply(null, zs), zmax: Math.max.apply(null, zs), parques: [], semMetadados: true }; }
+      var byKey = {}; tiles.forEach(function (t) { byKey[t.name] = t; }); var feitos = 0;
+      await lerLotes(file, tiles, async function (out) {
+        var arr = out.map(function (f) { return { k: byKey[f.name].key, blob: new Blob([f.data], { type: tipo(f.name) }) }; });
+        await DB.putMany('tiles', arr); feitos += arr.length; if (onProg) onProg(feitos, tiles.length);
       });
-    });
+      var ant = await DB.getMeta('mapa', null);
+      meta.importadoEm = new Date().toISOString();
+      if (ant) { meta.zmin = Math.min(meta.zmin, ant.zmin); meta.zmax = Math.max(meta.zmax, ant.zmax); meta.parques = (ant.parques || []).concat((meta.parques || []).filter(function (p) { return (ant.parques || []).indexOf(p) < 0; })); }
+      meta.nTiles = await DB.count('tiles'); await DB.setMeta('mapa', meta); M.pack = meta; return meta;
+    })();
   };
   M.limpar = function () { return DB.clear('tiles').then(function () { return DB.setMeta('mapa', null); }).then(function () { M.pack = null; }); };
 
