@@ -27,19 +27,26 @@
   function zNativo(gsd, lat) { return Math.log(156543.03392 * Math.cos(lat * R) / gsd) / Math.LN2; }
 
   /* abre o arquivo e devolve o que a tela precisa mostrar */
-  G.abrir = function (file) {
+  G.abrir = function (file, aux) {
+    aux = aux || {};
     var GT = root.GeoTIFF; if (!GT) return Promise.reject(new Error('Leitor de GeoTIFF não carregado'));
     return GT.fromBlob(file).then(function (tiff) { return tiff.getImage().then(function (img) {
       var fd = img.getFileDirectory(), keys = img.getGeoKeys() || {}, o = {};
       o.tiff = tiff; o.img = img; o.w = img.getWidth(); o.h = img.getHeight(); o.ns = img.getSamplesPerPixel();
-      var pr = keys.ProjectedCSTypeGeoKey, gg = keys.GeographicTypeGeoKey;
-      o.epsg = pr && pr !== 32767 ? pr : gg;
+      var pr = keys.ProjectedCSTypeGeoKey, gg = keys.GeographicTypeGeoKey, semGeo = !fd.ModelTiepoint && !fd.ModelTransformation, org, res;
+      o.epsg = pr && pr !== 32767 ? pr : gg; if (!o.epsg && aux.epsg) o.epsg = aux.epsg; o.viaTfw = false;
+      if (semGeo) {
+        if (!aux.tfw) throw new Error('O .tif não tem coordenadas embutidas. Selecione também o arquivo .tfw (world file) e confirme o sistema de coordenadas.');
+        var L = String(aux.tfw).trim().split(/\s+/).map(Number); if (L.length < 6 || L.some(function (v) { return !isFinite(v); })) throw new Error('Arquivo .tfw inválido');
+        if (Math.abs(L[1]) > 1e-12 || Math.abs(L[2]) > 1e-12) throw new Error('A imagem está rotacionada; reprojete para a grade norte-sul.');
+        org = [L[4] - L[0] / 2, L[5] - L[3] / 2]; res = [L[0], L[3]]; o.viaTfw = true;   /* .tfw guarda o centro do pixel superior esquerdo */
+      }
       o.P = G.proj(o.epsg);
       if (!o.P) throw new Error('Sistema de coordenadas ' + (o.epsg ? 'EPSG:' + o.epsg : 'não identificado') + ' não suportado. Reprojete a imagem para SIRGAS 2000 (EPSG:4674) ou SIRGAS 2000 / UTM (EPSG:31983 para os dois parques) e tente de novo.');
       var mt = fd.ModelTransformation; if (mt && (Math.abs(mt[1]) > 1e-12 || Math.abs(mt[4]) > 1e-12)) throw new Error('A imagem está rotacionada; reprojete para a grade norte-sul.');
-      var org, res; try { org = img.getOrigin(); res = img.getResolution(); } catch (e) { throw new Error('O arquivo não tem georreferenciamento (GeoTIFF). Exporte de novo como GeoTIFF.'); }
+      if (!semGeo) { try { org = img.getOrigin(); res = img.getResolution(); } catch (e) { throw new Error('O arquivo não tem georreferenciamento (GeoTIFF). Exporte de novo como GeoTIFF.'); } }
       o.x0 = org[0]; o.y0 = org[1]; o.rx = res[0]; o.ry = res[1]; if (!(o.ry < 0)) o.ry = -Math.abs(o.ry);
-      if (keys.GTRasterTypeGeoKey === 2) { o.x0 -= o.rx / 2; o.y0 -= o.ry / 2; }
+      if (!o.viaTfw && keys.GTRasterTypeGeoKey === 2) { o.x0 -= o.rx / 2; o.y0 -= o.ry / 2; }
       if (fd.PhotometricInterpretation === 3) throw new Error('Imagem com paleta de cores não é suportada; exporte em RGB.');
       o.bits = img.getBitsPerSample(0); o.fmt = img.getSampleFormat(0); o.nodata = img.getGDALNoData();
       var ex = fd.ExtraSamples; ex = ex ? (ex.length != null ? Array.prototype.slice.call(ex) : [ex]) : [];

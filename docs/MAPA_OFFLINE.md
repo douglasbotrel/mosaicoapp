@@ -49,3 +49,7 @@ Um único `.zip` de ~2 GB não é lido pelo navegador (erro "The requested file 
 
 ## Importação de mapas grandes (app 1.3.3)
 O app agora lê o `.zip` **por fatias** (não carrega o arquivo todo), então aceita arquivos grandes (testado: ZIP64 com 72 mil tiles, comprimido). Aceita também `.zip` sem `mapa.json` (usa o nome do arquivo como fonte e deduz o zoom; **atribuição fica vazia**: preencha/registre a licença à parte), e tiles dentro de uma pasta (`pasta/z/x/y.png`). Os tiles precisam estar no esquema **XYZ** (y de cima para baixo, igual ao Google/OSM). Se o mapa aparecer deslocado/espelhado, foi gerado em TMS (marcar "XYZ" na exportação do QGIS). Arquivos de vários GB ainda levam minutos e ocupam espaço no aparelho; prefira zoom até 16 ou 17 e um arquivo por parque.
+
+## GeoTIFF sem coordenadas embutidas (.tfw) — central 1.4.1
+Alguns GeoTIFF vêm com a posição só num arquivo separado `.tfw` (world file). No card *Importar imagem GeoTIFF*, escolha o `.tif` e, se a central avisar "não tem coordenadas embutidas", selecione também o `.tfw` e o sistema de coordenadas (padrão SIRGAS 2000 / UTM 23S, EPSG:31983; o `.tfw` não informa o sistema, confirme no QGIS). Imagem de 1 banda (pancromática) vira mapa em tons de cinza.
+**Tamanho:** um `.tif` de vários GB funciona, mas é lento. O ideal é recortar cada parque (QGIS: *Raster → Extração → Recortar raster por extensão/camada de máscara*, margem ~300 m) e salvar em GeoTIFF com CRS embutido, de preferência 8 bits e com blocos internos (tiled).

@@ -58,7 +58,7 @@
     /* ---- Importar imagem GeoTIFF (recorte feito fora do app) ---- */
     (function () {
       var G = window.MOSAICO_GEOTIFF; if (!G) return;
-      var f = h('input', { type: 'file', id: 'gt-file', accept: '.tif,.tiff,image/tiff' }), info = h('div', { id: 'gt-info', class: 'msg' }), pg = h('div', { id: 'gt-prog', class: 'dim' });
+      var f = h('input', { type: 'file', id: 'gt-file', accept: '.tif,.tiff,image/tiff' }), tfw = h('input', { type: 'file', id: 'gt-tfw', accept: '.tfw,.wld' }), crs = h('select', { id: 'gt-crs' }, [['31983', 'SIRGAS 2000 / UTM 23S (31983)'], ['32723', 'WGS 84 / UTM 23S (32723)'], ['4674', 'SIRGAS 2000 geográfico (4674)'], ['4326', 'WGS 84 geográfico (4326)']].map(function (c) { return h('option', { value: c[0], text: c[1] }); })), info = h('div', { id: 'gt-info', class: 'msg' }), pg = h('div', { id: 'gt-prog', class: 'dim' });
       var zmn = h('input', { type: 'number', id: 'gt-zmin', value: 12, min: 8, max: 19, style: 'width:5em' }), zmx = h('input', { type: 'number', id: 'gt-zmax', value: 17, min: 8, max: 20, style: 'width:5em' });
       var fonte = h('input', { type: 'text', id: 'gt-fonte', placeholder: 'Ex.: CBERS-4A WPM fusionada (INPE), 2 m', style: 'width:100%' }), atr = h('input', { type: 'text', id: 'gt-atrib', placeholder: 'Atribuição exigida pela licença (ex.: INPE/CBERS, CC BY 4.0)', style: 'width:100%' });
       var parte = h('input', { type: 'number', id: 'gt-parte', value: 150, min: 0.05, step: 'any', style: 'width:5em' }), ok = h('input', { type: 'checkbox', id: 'gt-ok' }), est = h('input', { type: 'checkbox', id: 'gt-estirar' });
@@ -67,10 +67,11 @@
       function qs() { return [pb.checked ? 'PEBI' : null, ps.checked ? 'PESN' : null].filter(Boolean); }
       function conta() { if (!o) return; var n = estima(qs(), +zmn.value, +zmx.value, 300).length; info.textContent = o.w + '×' + o.h + ' px · ' + o.ns + ' bandas · ' + o.bits + ' bits · ' + o.P.nome + ' · ' + o.gsd.toFixed(2) + ' m/pixel (zoom nativo ≈ ' + o.zNativo.toFixed(1) + ') · ' + n.toLocaleString('pt-BR') + ' tiles, ~' + (n * 0.025).toFixed(0) + ' MB' + (+zmx.value > Math.ceil(o.zNativo) + 1 ? ' · ATENÇÃO: zoom máximo acima da resolução da imagem só amplia, sem ganhar detalhe' : ''); }
       [zmn, zmx, pb, ps].forEach(function (e) { e.addEventListener('input', conta); e.addEventListener('change', conta); });
-      f.addEventListener('change', function () {
+      function abrir() {
         o = null; go.disabled = true; if (!f.files[0]) return; info.textContent = 'Lendo cabeçalho…';
-        G.abrir(f.files[0]).then(function (r) { o = r; zmx.value = Math.min(19, Math.max(12, Math.round(r.zNativo))); zmn.value = Math.max(8, +zmx.value - 5); if (r.bits !== 8) est.checked = true; go.disabled = false; conta(); }).catch(function (e) { info.textContent = 'Erro: ' + e.message; });
-      });
+        (tfw.files[0] ? tfw.files[0].text() : Promise.resolve('')).then(function (tx) { return G.abrir(f.files[0], { tfw: tx, epsg: +crs.value }); }).then(function (r) { o = r; zmx.value = Math.min(19, Math.max(12, Math.round(r.zNativo))); zmn.value = Math.max(8, +zmx.value - 5); if (r.bits !== 8) est.checked = true; go.disabled = false; conta(); }).catch(function (e) { info.textContent = 'Erro: ' + e.message; });
+      }
+      f.addEventListener('change', abrir); tfw.addEventListener('change', abrir); crs.addEventListener('change', abrir);
       cn.onclick = function () { cancel = true; };
       go.onclick = function () {
         if (!o) return; if (!ok.checked) { pg.textContent = 'Marque a confirmação de licença antes de converter'; return; }
@@ -84,7 +85,7 @@
       };
       box.appendChild(h('div', { class: 'card' }, h('b', { text: 'Importar imagem GeoTIFF dos parques' }),
         h('p', { class: 'dim', text: 'Use o recorte de satélite que você gerou fora do app (GeoTIFF RGB, de preferência 8 bits, em SIRGAS 2000 geográfico EPSG:4674 ou UTM 23S EPSG:31983). A central converte para o pacote de mapa dos celulares; a imagem não sai deste computador. O celular não lê o .tif diretamente.' }),
-        h('p', {}, f), h('div', { class: 'k' }, h('label', {}, pb, ' PE do Biribiri'), h('label', {}, ps, ' PE da Serra Negra'), h('label', {}, 'Zoom de ', zmn, ' a ', zmx)),
+        h('p', {}, f), h('p', { class: 'dim' }, 'Só se o .tif não tiver coordenadas embutidas: arquivo .tfw ', tfw, ' e sistema de coordenadas ', crs), h('div', { class: 'k' }, h('label', {}, pb, ' PE do Biribiri'), h('label', {}, ps, ' PE da Serra Negra'), h('label', {}, 'Zoom de ', zmn, ' a ', zmx)),
         h('p', {}, h('label', {}, est, ' Esticar contraste (imagens de 16 bits ou sem ajuste de brilho)')), h('p', {}, fonte), h('p', {}, atr), h('p', {}, h('label', {}, 'Tamanho máximo de cada parte (MB) ', parte)), info,
         h('label', { class: 'ck' }, ok, ' Confirmo que a licença desta imagem permite uso e distribuição aos celulares da equipe, e que a atribuição acima será mantida.'),
         h('p', {}, go, ' ', cn), pg));
